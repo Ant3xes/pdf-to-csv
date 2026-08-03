@@ -53,15 +53,45 @@ L'utilisateur final n'est pas technique : l'interface doit être en drag & drop,
 | Interface | Flask + JS (drag & drop natif, édition inline) | UI simple pour l'utilisateur final — voir [ADR-0002](./docs/adr/0002-interface-flask-js.md) |
 | Export | `pandas` | Agrégation des résultats et export CSV uniquement |
 
-## Exemples de factures réelles (5 fournisseurs, formats différents)
+## Corpus de référence : `private_corpus/`
 
-Ces 5 cas doivent servir de jeu de test pour valider le pipeline :
+Le corpus réel du projet vit dans [`private_corpus/`](./private_corpus/) (dossier de fichiers sur disque — **pas** une base de données applicative ; voir **Corpus** dans [`CONTEXT.md`](./CONTEXT.md)).
+
+Inventaire (≈ 30 fichiers, juillet 2026) :
+
+| Fournisseur / document | Fichiers | Notes |
+|---|---|---|
+| ACR | 1 PDF | |
+| Altagel | 2 PDF | Scan / OCR obligatoire (cas de référence historique) |
+| Aluplast | 1 PDF | Cas de référence historique |
+| Compagnie déboucheurs | 1 PDF | |
+| Devaud | 1 PDF | Cas de référence historique (texte fusionné, multi-pages) |
+| Domaine Verzier | 1 PDF | |
+| Domaine des Jumeaux | 3 PDF | Dont un doublon nommé « copie » — 1 fichier = 1 ligne si déposé |
+| Hennequin | 1 facture + 1 **avoir** | L'avoir est une Facture au sens du pipeline |
+| Hotel Formule 1 | 1 PDF | Extension `.PDF` (casse à tolérer) |
+| L'Anse du Piquet | 2 PDF | |
+| Masse | 3 PDF | Cas de référence historique |
+| Métro | 2 PDF | |
+| SPRE | 1 PDF | |
+| Valrhona | 2 PDF | |
+| Véolia eaux | 1 **avoir** | |
+| Vives eaux | 2 factures + 1 **avoir** | |
+| Youtrust | 1 PDF | |
+| Quittance [locataire] | 1 `.heic` | **Hors scope V1** (pas une Facture) |
+| Quittance [locataire] | 1 `.jpg` | **Hors scope V1** (pas une Facture) |
+
+### Cas de référence historiques (smoke tests prioritaires)
+
+Ces 5 cas restent le premier jeu de validation du pipeline (fichiers présents dans le corpus) :
 
 1. **Masse** — PDF natif, tableau multi-lignes, TVA multi-taux (5,5%), total TTC clairement libellé "TOTAL TTC en EURO".
 2. **Domaine des Jumeaux** — PDF natif, une seule ligne produit, mentions légales collées au texte (peu d'espacement), total "Net à payer".
 3. **Devaud** — PDF natif mais texte extrait sans espaces entre mots par endroits, facture multi-pages avec plusieurs bons de livraison, total final "NET A PAYER".
 4. **Aluplast** — PDF natif, tableau + ligne "frais de port" séparée, bloc Total HT/TVA/TTC dense sans labels très explicites.
 5. **Altagel** — **PDF scanné (image)**, nécessite obligatoirement l'OCR, tableau + totalisation par famille de produits, total "NET A PAYER".
+
+Objectif V1 : un template YAML par fournisseur **récurrent** du corpus (hors quittances) ; les 5 cas ci-dessus sont le critère de « pipeline OK », le reste du corpus élargit la couverture.
 
 ## Structure de template attendue (invoice2data, exemple)
 
@@ -98,7 +128,7 @@ Un template YAML doit être créé par fournisseur récurrent. Utiliser le mode 
    - Montant TTC détecté
    - Statut (OK / À vérifier)
 4. Permettre la correction manuelle inline des champs marqués "À vérifier". Cette correction est éphémère : elle ne modifie que la ligne CSV de la facture concernée, jamais un template (créer un template à partir d'une correction est repoussé en V2 — voir "Hors scope").
-5. Bouton d'export : génère un fichier CSV avec une ligne par facture, colonnes : `fichier, emetteur, date, montant_ttc, statut`. Aucune persistance entre les lancements de l'application (pas d'historique, pas de base de données).
+5. Bouton d'export : génère un fichier CSV avec une ligne par facture, colonnes : `fichier, emetteur, date, montant_ttc, statut`. Aucune persistance entre les lancements de l'application (pas d'historique, pas de base de données applicative — le dossier `private_corpus/` est un corpus de fichiers, pas un stockage de session).
 
 ## Format de sortie CSV attendu
 
@@ -119,20 +149,22 @@ Altagel-10-Juillet-26-5.pdf;Altagel;10/07/2026;382,26;A_VERIFIER
 
 ## Étapes de développement suggérées (pour Claude Code)
 
-1. **Setup projet** : structure de dossiers (`app/`, `templates/`, `tests/`, `samples/`), dépendances (`requirements.txt` : `pdfplumber`, `pytesseract`, `pdf2image`, `invoice2data`, `pandas`, `flask`).
+1. **Setup projet** : structure de dossiers (`app/`, `templates/`, `tests/`), corpus déjà présent dans `private_corpus/`, dépendances (`requirements.txt` : `pdfplumber`, `pytesseract`, `pdf2image`, `invoice2data`, `pandas`, `flask`).
 2. **Module extraction texte** : fonction `extract_text(pdf_path) -> str` avec fallback OCR automatique si texte natif insuffisant.
 3. **Module détection + extraction structurée** : intégration `invoice2data` avec dossier de templates YAML personnalisés.
-4. **Créer les 5 templates YAML** de test à partir des factures d'exemple fournies (Masse, Domaine des Jumeaux, Devaud, Aluplast, Altagel).
+4. **Créer les templates YAML** à partir du corpus `private_corpus/` : d'abord les 5 cas de référence (Masse, Domaine des Jumeaux, Devaud, Aluplast, Altagel), puis élargir aux autres fournisseurs récurrents (y compris les avoirs, traités comme des factures).
 5. **Module fallback manuel** : structure de données pour marquer les champs manquants/incertains et permettre correction utilisateur.
 6. **Interface Flask + JS** : zone drag & drop multi-fichiers, tableau de résultats éditable inline, bouton export CSV — voir [ADR-0002](./docs/adr/0002-interface-flask-js.md).
 7. **Export CSV** : génération finale via `pandas.DataFrame.to_csv(sep=';', decimal=',')`.
-8. **Tests** : valider le pipeline sur les 5 factures d'exemple, vérifier que les montants/dates/émetteurs extraits sont corrects.
+8. **Tests** : valider le pipeline sur les 5 cas de référence, puis sur un échantillon élargi du corpus (plusieurs factures par fournisseur, avoirs) ; vérifier émetteurs / dates / montants.
 
 ## Points d'attention techniques
 
 - Le PDF "Altagel" est un scan pur : sans OCR, aucune extraction ne fonctionnera dessus. Vérifier la disponibilité de Tesseract sur la machine cible (binaire système, pas juste le wrapper Python).
 - Le PDF "Devaud" a du texte fusionné sans espaces par endroits : prévoir des regex tolérantes ou une normalisation du texte (insertion d'espaces avant les majuscules après un chiffre, etc.) si besoin.
 - Le PDF "Aluplast" a plusieurs montants proches (Total HT, TVA, Total TTC) sur des lignes denses : bien tester la regex du montant pour ne pas capturer le mauvais nombre.
+- Les **avoirs** du corpus (Hennequin, Véolia eaux, Vives eaux) utilisent souvent des libellés différents (« AVOIR », totaux de crédit) : prévoir des regex / mots-clés adaptés dans le même template fournisseur, ou marquer "À vérifier" si le montant n'est pas fiable.
+- Tolérer la casse des extensions (`.pdf` / `.PDF`) à l'entrée.
 - Prévoir un seuil de confiance simple (ex: si la date extraite ne matche pas un format valide, ou si le montant ne correspond à aucun nombre décimal plausible, marquer automatiquement en "À vérifier").
 - Garder le système extensible : ajouter un nouveau fournisseur doit juste nécessiter l'ajout d'un fichier YAML, sans toucher au code.
 
@@ -144,3 +176,4 @@ Altagel-10-Juillet-26-5.pdf;Altagel;10/07/2026;382,26;A_VERIFIER
 - Pas de génération de template depuis l'UI à partir d'une correction manuelle (backlog V2) : en V1, corriger une facture ne crée ni ne modifie jamais de template.
 - Pas de coexistence de plusieurs templates pour un même fournisseur (pas de versioning de templates) : un changement de mise en page se traite en éditant/remplaçant le template existant.
 - Pas d'export Excel (.xlsx) natif — le CSV, ouvrable dans Excel, suffit.
+- Pas de traitement des **quittances** ni des entrées non-PDF (`.heic`, `.jpg`, etc.) présentes dans le corpus — entrée V1 = PDF uniquement.
