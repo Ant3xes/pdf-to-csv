@@ -1,7 +1,8 @@
 import shutil
 from pathlib import Path
 
-from app.lot import process_lot
+from app.csv_export import export_csv
+from app.lot import corriger_ligne, process_lot
 
 CORPUS = Path(__file__).resolve().parents[1] / "private_corpus"
 TEMPLATES = Path(__file__).resolve().parents[1] / "invoice_templates"
@@ -214,3 +215,39 @@ def test_lot_montant_non_decimal_a_verifier(tmp_path):
     assert ligne.date == "15/03/2026"
     assert ligne.montant_ttc is None
     assert ligne.statut == "A_VERIFIER"
+
+
+def test_correction_manuelle_refletee_dans_export_sans_modifier_templates():
+    """Correction éphémère émetteur/date/montant → CSV mis à jour, templates intacts (#10)."""
+    templates_before = {p.name: p.read_bytes() for p in TEMPLATES.glob("*.yml")}
+
+    lignes = process_lot(
+        [CORPUS / "Masse 22 Juillet 26.pdf"],
+        TEMPLATES,
+    )
+    corrigee = corriger_ligne(
+        lignes[0],
+        emetteur="Masse corrigé",
+        date="01/01/2026",
+        montant_ttc="1,23",
+    )
+
+    assert export_csv([corrigee]) == (
+        "fichier;emetteur;date;montant_ttc;statut\n"
+        "Masse 22 Juillet 26.pdf;Masse corrigé;01/01/2026;1,23;OK\n"
+    )
+    assert {p.name: p.read_bytes() for p in TEMPLATES.glob("*.yml")} == templates_before
+
+
+def test_correction_manuelle_partielle_ne_touche_que_les_champs_fournis():
+    """On peut corriger un seul champ ; les autres restent (#10)."""
+    lignes = process_lot(
+        [CORPUS / "Masse 22 Juillet 26.pdf"],
+        TEMPLATES,
+    )
+    corrigee = corriger_ligne(lignes[0], montant_ttc="999,99")
+
+    assert export_csv([corrigee]) == (
+        "fichier;emetteur;date;montant_ttc;statut\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;999,99;OK\n"
+    )

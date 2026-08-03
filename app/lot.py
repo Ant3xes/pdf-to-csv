@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pdfplumber
 import pytesseract
@@ -169,3 +170,24 @@ def process_lot(
         )
 
     return lignes
+
+
+_UNSET: Any = object()
+
+
+def corriger_ligne(
+    ligne: LigneFacture,
+    *,
+    emetteur: str | None = _UNSET,
+    date: str | None = _UNSET,
+    montant_ttc: str | None = _UNSET,
+) -> LigneFacture:
+    """Correction manuelle éphémère : nouvelle ligne, templates intacts."""
+    updates: dict[str, str | None] = {}
+    if emetteur is not _UNSET:
+        updates["emetteur"] = emetteur
+    if date is not _UNSET:
+        updates["date"] = date
+    if montant_ttc is not _UNSET:
+        updates["montant_ttc"] = montant_ttc
+    return replace(ligne, **updates)
