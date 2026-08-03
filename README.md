@@ -34,4 +34,5 @@ pytest
 Le parcours Lot → CSV est couvert par les smoke tests du corpus `private_corpus/` :
 
 - PDF natifs : Masse, Domaine des Jumeaux, Devaud, Aluplast → `OK`
+- PDF sans template : ACR → `A_VERIFIER`, sans émetteur automatique
 - PDF scanné (OCR) : Altagel → champs extraits + statut `A_VERIFIER`

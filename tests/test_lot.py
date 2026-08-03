@@ -89,6 +89,19 @@ def test_lot_plusieurs_pdf_meme_fournisseur_restent_lignes_distinctes():
     assert all(l.statut == "OK" for l in lignes)
 
 
+def test_lot_facture_sans_template_a_verifier_sans_emetteur():
+    lignes = process_lot(
+        [CORPUS / "ACR 1 Juillet 26.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "ACR 1 Juillet 26.pdf"
+    assert ligne.emetteur is None
+    assert ligne.statut == "A_VERIFIER"
+
+
 def test_lot_altagel_scan_ocr_extrait_champs_mais_a_verifier():
     lignes = process_lot(
         [CORPUS / "Altagel 10 Juillet 26.pdf"],
