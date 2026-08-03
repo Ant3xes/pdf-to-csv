@@ -1,0 +1,85 @@
+/* Minimal layout — refined with drag & drop behaviour in app.js */
+:root {
+  --bg: #f6f3ee;
+  --ink: #1c1917;
+  --accent: #0f766e;
+  --muted: #78716c;
+  --border: #d6d3d1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Source Sans 3", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse at top left, #e7e5e4 0%, transparent 50%),
+    linear-gradient(160deg, #fafaf9, var(--bg));
+  min-height: 100vh;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  margin: 0 0 1.5rem;
+}
+
+#drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.55);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+#drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(15, 118, 110, 0.08);
+}
+
+#drop-zone label {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+#processing-indicator {
+  margin: 1rem 0;
+  color: var(--muted);
+}
+
+#error-message {
+  margin: 1rem 0;
+  color: #b91c1c;
+}
+
+#results-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5rem;
+  font-size: 0.95rem;
+}
+
+#results-table th,
+#results-table td {
+  text-align: left;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+#results-table th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}

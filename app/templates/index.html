@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Convertisseur de factures PDF</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main>
+    <h1>Convertisseur de factures PDF</h1>
+
+    <section id="drop-zone" aria-label="Zone de dépôt des PDF">
+      <p>Glissez-déposez vos factures PDF ici, ou</p>
+      <label>
+        choisir des fichiers
+        <input id="file-input" type="file" accept=".pdf,.PDF,application/pdf" multiple hidden>
+      </label>
+    </section>
+
+    <p id="processing-indicator" hidden aria-live="polite">Traitement en cours…</p>
+    <p id="error-message" hidden role="alert"></p>
+
+    <table id="results-table">
+      <thead>
+        <tr>
+          <th>Fichier</th>
+          <th>Émetteur</th>
+          <th>Date</th>
+          <th>Montant TTC</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
