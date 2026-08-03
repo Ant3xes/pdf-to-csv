@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 from app.lot import process_lot
@@ -99,6 +100,25 @@ def test_lot_facture_sans_template_a_verifier_sans_emetteur():
     ligne = lignes[0]
     assert ligne.fichier == "ACR 1 Juillet 26.pdf"
     assert ligne.emetteur is None
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_detection_ambigue_a_verifier_sans_emetteur(tmp_path):
+    """≥2 templates natifs (#2) matchent → aucun appliqué, A_VERIFIER sans émetteur."""
+    shutil.copy(TEMPLATES / "masse.yml", tmp_path / "masse.yml")
+    shutil.copy(TEMPLATES / "aluplast.yml", tmp_path / "aluplast.yml")
+
+    lignes = process_lot(
+        [FIXTURES / "detection_ambigue_masse_aluplast.pdf"],
+        tmp_path,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "detection_ambigue_masse_aluplast.pdf"
+    assert ligne.emetteur is None
+    assert ligne.date is None
+    assert ligne.montant_ttc is None
     assert ligne.statut == "A_VERIFIER"
 
 
