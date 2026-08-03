@@ -150,3 +150,67 @@ def test_lot_pdf_sans_texte_natif_bascule_ocr_avant_extraction():
     assert ligne.date == "15/03/2026"
     assert ligne.montant_ttc == "99,50"
     assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_champ_obligatoire_manquant_a_verifier():
+    """Template matche mais montant absent → A_VERIFIER (#9)."""
+    lignes = process_lot(
+        [FIXTURES / "champ_manquant_montant.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "champ_manquant_montant.pdf"
+    assert ligne.emetteur == "Masse"
+    assert ligne.date == "15/03/2026"
+    assert ligne.montant_ttc is None
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_date_invalide_a_verifier():
+    """Date capturée hors format valide → A_VERIFIER (#9)."""
+    lignes = process_lot(
+        [FIXTURES / "date_invalide.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "date_invalide.pdf"
+    assert ligne.emetteur == "Masse"
+    assert ligne.date is None
+    assert ligne.montant_ttc == "100,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_montant_non_decimal_a_verifier(tmp_path):
+    """Montant capturé mais non décimal plausible → A_VERIFIER (#9)."""
+    # Regex plus large que masse.yml pour capturer un jeton non numérique (N/A).
+    (tmp_path / "masse.yml").write_text(
+        "issuer: Masse\n"
+        "keywords:\n"
+        "  - MASSE NANTES\n"
+        "  - maison-masse\n"
+        "fields:\n"
+        "  date: 'Date\\s+(\\d{2}/\\d{2}/\\d{4})'\n"
+        "  amount: 'TOTAL TTC en EURO\\s+(\\S+)'\n"
+        "options:\n"
+        "  date_formats:\n"
+        "    - '%d/%m/%Y'\n"
+        "  decimal_separator: ','\n",
+        encoding="utf-8",
+    )
+
+    lignes = process_lot(
+        [FIXTURES / "montant_non_decimal.pdf"],
+        tmp_path,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "montant_non_decimal.pdf"
+    assert ligne.emetteur == "Masse"
+    assert ligne.date == "15/03/2026"
+    assert ligne.montant_ttc is None
+    assert ligne.statut == "A_VERIFIER"
