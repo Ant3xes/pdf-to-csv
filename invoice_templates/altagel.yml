@@ -1,0 +1,11 @@
+issuer: Altagel
+# Orthographe telle qu'imprimée sur les factures du corpus (pas « ALTAGEL »).
+keywords:
+  - ATLAGEL
+fields:
+  date: 'Date:(\d{2}/\d{2}/\d{2})'
+  amount: 'NET A PAYER\s+(\d+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%y'
+  decimal_separator: ','

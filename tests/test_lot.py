@@ -4,6 +4,7 @@ from app.lot import process_lot
 
 CORPUS = Path(__file__).resolve().parents[1] / "private_corpus"
 TEMPLATES = Path(__file__).resolve().parents[1] / "invoice_templates"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def test_lot_masse_extrait_emetteur_date_montant_ok():
@@ -86,3 +87,33 @@ def test_lot_plusieurs_pdf_meme_fournisseur_restent_lignes_distinctes():
     assert [l.date for l in lignes] == ["22/07/2026", "23/07/2026", "28/07/2026"]
     assert [l.montant_ttc for l in lignes] == ["793,31", "214,47", "657,42"]
     assert all(l.statut == "OK" for l in lignes)
+
+
+def test_lot_altagel_scan_ocr_extrait_champs_mais_a_verifier():
+    lignes = process_lot(
+        [CORPUS / "Altagel 10 Juillet 26.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "Altagel 10 Juillet 26.pdf"
+    assert ligne.emetteur == "Altagel"
+    assert ligne.date == "10/07/2026"
+    assert ligne.montant_ttc == "382,26"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_pdf_sans_texte_natif_bascule_ocr_avant_extraction():
+    lignes = process_lot(
+        [FIXTURES / "scan_sans_texte.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "scan_sans_texte.pdf"
+    assert ligne.emetteur == "Altagel"
+    assert ligne.date == "15/03/2026"
+    assert ligne.montant_ttc == "99,50"
+    assert ligne.statut == "A_VERIFIER"

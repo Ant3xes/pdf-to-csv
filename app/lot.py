@@ -1,21 +1,76 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 import pdfplumber
+import pytesseract
 import yaml
+from pdf2image import convert_from_path
 
 from app.models import LigneFacture
 
 STATUT_OK = "OK"
 STATUT_A_VERIFIER = "A_VERIFIER"
 
+# Below this, native text is treated as empty/insufficient → OCR fallback.
+MIN_NATIVE_CHARS = 50
+# Page image covering at least this fraction of the page → scanned page.
+FULL_PAGE_IMAGE_RATIO = 0.9
+OCR_DPI = 200
+OCR_LANG = "fra"
 
-def _extract_text(pdf_path: Path) -> str:
+
+@dataclass(frozen=True)
+class SourceText:
+    text: str
+    from_ocr: bool
+
+
+def _page_max_image_ratio(page) -> float:
+    area = page.width * page.height
+    if area <= 0:
+        return 0.0
+    max_ratio = 0.0
+    for image in page.images:
+        width = image.get("width", abs(image["x1"] - image["x0"]))
+        height = image.get("height", abs(image["y1"] - image["y0"]))
+        max_ratio = max(max_ratio, (width * height) / area)
+    return max_ratio
+
+
+def _is_scanned_pdf(pdf) -> bool:
+    if not pdf.pages:
+        return False
+    return all(
+        _page_max_image_ratio(page) >= FULL_PAGE_IMAGE_RATIO for page in pdf.pages
+    )
+
+
+def _extract_native_text(pdf) -> str:
+    return "\n".join((page.extract_text() or "") for page in pdf.pages)
+
+
+def _extract_ocr_text(pdf_path: Path) -> str:
+    images = convert_from_path(pdf_path, dpi=OCR_DPI)
+    return "\n".join(
+        pytesseract.image_to_string(image, lang=OCR_LANG) for image in images
+    )
+
+
+def _extract_text(pdf_path: Path) -> SourceText:
     with pdfplumber.open(pdf_path) as pdf:
-        return "\n".join((page.extract_text() or "") for page in pdf.pages)
+        native = _extract_native_text(pdf)
+        scanned = _is_scanned_pdf(pdf)
+
+    if len(native.strip()) >= MIN_NATIVE_CHARS:
+        # Full-page image PDFs often carry an OCR text layer already; treat
+        # that source as OCR so statut stays A_VERIFIER (CONTEXT rule 6).
+        return SourceText(text=native, from_ocr=scanned)
+
+    return SourceText(text=_extract_ocr_text(pdf_path), from_ocr=True)
 
 
 def _load_templates(templates_dir: Path) -> list[dict]:
@@ -92,15 +147,15 @@ def process_lot(
 
     for pdf_path in pdf_paths:
         path = Path(pdf_path)
-        text = _extract_text(path)
-        matches = _matching_templates(text, templates)
+        source = _extract_text(path)
+        matches = _matching_templates(source.text, templates)
 
         emetteur = date = montant = None
         statut = STATUT_A_VERIFIER
 
         if len(matches) == 1:
-            emetteur, date, montant = _apply_template(text, matches[0])
-            if emetteur and date and montant:
+            emetteur, date, montant = _apply_template(source.text, matches[0])
+            if emetteur and date and montant and not source.from_ocr:
                 statut = STATUT_OK
 
         lignes.append(
