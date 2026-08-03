@@ -1,0 +1,11 @@
+issuer: Masse
+keywords:
+  - MASSE NANTES
+  - maison-masse
+fields:
+  date: 'Date\s+(\d{2}/\d{2}/\d{4})'
+  amount: 'TOTAL TTC en EURO\s+(\d+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: ','
