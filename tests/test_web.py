@@ -45,6 +45,39 @@ def test_static_js_gere_depot_et_tableau(client):
     assert "À vérifier" in js
 
 
+def test_static_js_edition_inline_emetteur_date_montant(client):
+    """Émetteur, date et montant éditables inline pour toute ligne du Lot (#12)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "contentEditable" in js or "contenteditable" in js
+    for champ in ("emetteur", "date", "montant_ttc"):
+        assert champ in js
+    # fichier et statut restent en lecture seule côté édition
+    assert "fichier" in js
+    assert "statut" in js
+
+
+def test_static_js_correction_manuelle_ok_et_a_verifier_sans_template(client):
+    """Correction manuelle du Lot : OK et À vérifier, jamais de Template (#12)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    # Champs corrigibles sans filtre sur le statut de la ligne
+    assert 'EDITABLE_FIELDS = ["emetteur", "date", "montant_ttc"]' in js
+    assert "contentEditable" in js
+    assert 'if (ligne.statut' not in js
+    assert 'statut === "OK"' not in js
+    # État local du Lot (Correction manuelle éphémère, sémantique #10)
+    assert "lotLignes" in js
+    assert "corrigerLigneLocale" in js
+    # Aucun chemin UI vers les Templates
+    assert "invoice_templates" not in js
+    assert "/api/template" not in js
+
+
 def test_api_lot_un_pdf_retourne_ligne_facture(client):
     pdf_path = CORPUS / "Masse 22 Juillet 26.pdf"
     with pdf_path.open("rb") as fh:

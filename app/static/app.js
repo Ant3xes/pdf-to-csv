@@ -5,8 +5,16 @@
   const errorMessage = document.getElementById("error-message");
   const tableBody = document.querySelector("#results-table tbody");
 
+  const EDITABLE_FIELDS = ["emetteur", "date", "montant_ttc"];
+  /** État éphémère du Lot en cours (Correction manuelle locale, hors Template). */
+  let lotLignes = [];
+
   function statutLabel(statut) {
     return statut === "A_VERIFIER" ? "À vérifier" : statut;
+  }
+
+  function displayValue(value) {
+    return value == null || value === "" ? "—" : String(value);
   }
 
   function showError(message) {
@@ -18,21 +26,46 @@
     indicator.hidden = !active;
   }
 
+  function corrigerLigneLocale(index, champ, valeur) {
+    const ligne = lotLignes[index];
+    if (!ligne || !EDITABLE_FIELDS.includes(champ)) {
+      return;
+    }
+    const cleaned = valeur.trim();
+    lotLignes[index] = {
+      ...ligne,
+      [champ]: cleaned === "" ? null : cleaned,
+    };
+  }
+
   function renderLignes(lignes) {
+    lotLignes = lignes.map((ligne) => ({ ...ligne }));
     tableBody.replaceChildren();
-    for (const ligne of lignes) {
+    lotLignes.forEach((ligne, index) => {
       const tr = document.createElement("tr");
       for (const key of ["fichier", "emetteur", "date", "montant_ttc", "statut"]) {
         const td = document.createElement("td");
-        let value = ligne[key];
         if (key === "statut") {
-          value = statutLabel(value);
+          td.textContent = statutLabel(ligne[key]);
+        } else if (EDITABLE_FIELDS.includes(key)) {
+          td.textContent = displayValue(ligne[key]);
+          td.contentEditable = "true";
+          td.addEventListener("focus", () => {
+            if (lotLignes[index][key] == null || lotLignes[index][key] === "") {
+              td.textContent = "";
+            }
+          });
+          td.addEventListener("blur", () => {
+            corrigerLigneLocale(index, key, td.textContent || "");
+            td.textContent = displayValue(lotLignes[index][key]);
+          });
+        } else {
+          td.textContent = displayValue(ligne[key]);
         }
-        td.textContent = value == null || value === "" ? "—" : String(value);
         tr.appendChild(td);
       }
       tableBody.appendChild(tr);
-    }
+    });
   }
 
   async function uploadLot(fileList) {
