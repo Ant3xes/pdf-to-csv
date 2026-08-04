@@ -1,0 +1,12 @@
+issuer: Veolia Eau
+keywords:
+  - VEOLIA EAU
+  - Récapitulatif de votre avoir
+fields:
+  date: 'AVOIR du (\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4})'
+  amount: 'Solde en votre faveur\s*:\s*(\d[\d\s]*,\d{2})\s*€\s*TTC'
+options:
+  date_formats:
+    - '%d %B %Y'
+  decimal_separator: ','
+  amount_sign: negative

@@ -69,6 +69,66 @@ def test_lot_aluplast_montant_ttc_pas_ht_ni_tva():
     assert ligne.statut == "OK"
 
 
+def test_lot_hennequin_facture_et_avoir_meme_template():
+    lignes = process_lot(
+        [
+            CORPUS / "Hennequin 20 Juillet 26.pdf",
+            CORPUS / "Hennequin AVOIR 10 Juillet 26.pdf",
+        ],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 2
+    facture, avoir = lignes
+    assert facture.fichier == "Hennequin 20 Juillet 26.pdf"
+    assert facture.emetteur == "Hennequin"
+    assert facture.date == "20/07/2026"
+    assert facture.montant_ttc == "1 847,62".replace(" ", "")
+    assert facture.statut == "OK"
+    assert avoir.fichier == "Hennequin AVOIR 10 Juillet 26.pdf"
+    assert avoir.emetteur == "Hennequin"
+    assert avoir.date == "10/07/2026"
+    assert avoir.montant_ttc == "-1 424,78".replace(" ", "")
+    assert avoir.statut == "OK"
+
+
+def test_lot_veolia_avoir_extrait_credit_et_date():
+    lignes = process_lot(
+        [CORPUS / "Véolia eaux Avoir 22 Juillet 26.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "Véolia eaux Avoir 22 Juillet 26.pdf"
+    assert ligne.emetteur == "Veolia Eau"
+    assert ligne.date == "22/07/2026"
+    assert ligne.montant_ttc == "-1240,63"
+    assert ligne.statut == "OK"
+
+
+def test_lot_vives_eaux_factures_et_avoir_meme_template():
+    lignes = process_lot(
+        [
+            CORPUS / "Vives eaux 10 Juillet 26.pdf",
+            CORPUS / "Vives eaux 20 Juillet 26.pdf",
+            CORPUS / "Vives eaux Avoir 20 Juillet 26.pdf",
+        ],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 3
+    assert [ligne.fichier for ligne in lignes] == [
+        "Vives eaux 10 Juillet 26.pdf",
+        "Vives eaux 20 Juillet 26.pdf",
+        "Vives eaux Avoir 20 Juillet 26.pdf",
+    ]
+    assert all(ligne.emetteur == "Vives Eaux" for ligne in lignes)
+    assert [ligne.date for ligne in lignes] == ["10/07/2026", "20/07/2026", "20/07/2026"]
+    assert [ligne.montant_ttc for ligne in lignes] == ["2604,65", "3775,26", "-39,00"]
+    assert all(ligne.statut == "OK" for ligne in lignes)
+
+
 def test_lot_plusieurs_pdf_meme_fournisseur_restent_lignes_distinctes():
     lignes = process_lot(
         [

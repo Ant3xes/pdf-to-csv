@@ -1,0 +1,11 @@
+issuer: Hennequin
+keywords:
+  - MAREYAGE HENNEQUIN
+  - N° Client
+fields:
+  date: 'Date.*?(\d{2}/\d{2}/\d{4})'
+  amount: 'NET A PAYER.*?\n.*?\n-?\d[\d\s]*,\d{2}\s*€\s+(-?\d[\d\s]*,\d{2})\s*€'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: ','

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,20 @@ MIN_NATIVE_CHARS = 50
 FULL_PAGE_IMAGE_RATIO = 0.9
 OCR_DPI = 200
 OCR_LANG = "fra"
+FRENCH_MONTHS = {
+    "janvier": "01",
+    "fevrier": "02",
+    "mars": "03",
+    "avril": "04",
+    "mai": "05",
+    "juin": "06",
+    "juillet": "07",
+    "aout": "08",
+    "septembre": "09",
+    "octobre": "10",
+    "novembre": "11",
+    "decembre": "12",
+}
 
 
 @dataclass(frozen=True)
@@ -101,10 +116,22 @@ def _normalize_date(raw: str, date_formats: list[str]) -> str | None:
             return datetime.strptime(raw, fmt).strftime("%d/%m/%Y")
         except ValueError:
             continue
-    return None
+    normalized = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode(
+        "ascii"
+    )
+    match = re.fullmatch(r"\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})\s*", normalized)
+    if not match:
+        return None
+    day, month_name, year = match.groups()
+    month = FRENCH_MONTHS.get(month_name.lower())
+    if month is None:
+        return None
+    return f"{int(day):02d}/{month}/{year}"
 
 
-def _normalize_amount(raw: str, decimal_separator: str) -> str | None:
+def _normalize_amount(
+    raw: str, decimal_separator: str, amount_sign: str | None = None
+) -> str | None:
     cleaned = raw.strip().replace(" ", "")
     if decimal_separator == ",":
         cleaned = cleaned.replace(".", "").replace(",", ".")
@@ -114,6 +141,8 @@ def _normalize_amount(raw: str, decimal_separator: str) -> str | None:
         value = float(cleaned)
     except ValueError:
         return None
+    if amount_sign == "negative" and value > 0:
+        value = -value
     return f"{value:.2f}".replace(".", ",")
 
 
@@ -129,13 +158,18 @@ def _apply_template(text: str, template: dict) -> tuple[str | None, str | None, 
     fields = template.get("fields") or {}
     date_formats = options.get("date_formats") or ["%d/%m/%Y", "%d/%m/%y"]
     decimal_separator = options.get("decimal_separator") or ","
+    amount_sign = options.get("amount_sign")
 
     emetteur = template.get("issuer")
     raw_date = _extract_field(text, fields["date"]) if "date" in fields else None
     raw_amount = _extract_field(text, fields["amount"]) if "amount" in fields else None
 
     date = _normalize_date(raw_date, date_formats) if raw_date else None
-    montant = _normalize_amount(raw_amount, decimal_separator) if raw_amount else None
+    montant = (
+        _normalize_amount(raw_amount, decimal_separator, amount_sign)
+        if raw_amount
+        else None
+    )
     return emetteur, date, montant
 
 
