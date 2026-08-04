@@ -1,0 +1,11 @@
+issuer: Métro
+keywords:
+  - METRO ROCHE
+  - metro.fr
+fields:
+  date: 'Date facture\s*\*?\s*:\s*(\d{2}-\d{2}-\d{4})'
+  amount: 'Total à payer\s+(\d+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d-%m-%Y'
+  decimal_separator: ','

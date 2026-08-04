@@ -1,0 +1,11 @@
+issuer: Youtrust
+keywords:
+  - Youtrust SAS
+  - youtrust
+fields:
+  date: 'Date de la facture\s+([A-Za-zÀ-ÿ.\u2014\u2013\u00ad\-—]+\s+\d{1,2},\s+\d{4})'
+  amount: 'Montant de la facture\s+(\d+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: ','

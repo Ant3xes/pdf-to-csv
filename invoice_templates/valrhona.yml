@@ -1,0 +1,11 @@
+issuer: Valrhona
+keywords:
+  - valrhona.com
+  - scvalrhona
+fields:
+  date: 'N[°o]\s+\d+\s+du\s+(\d{2}\.\d{2}\.\d{4})'
+  amount: 'Montant\s*:\s*(\d+[,.]\d{2})\s*EUR'
+options:
+  date_formats:
+    - '%d.%m.%Y'
+  decimal_separator: ','

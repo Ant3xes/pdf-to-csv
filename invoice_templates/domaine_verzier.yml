@@ -1,0 +1,11 @@
+issuer: Domaine Verzier
+keywords:
+  - Philippe VERZIER
+  - chanteperdrixverzier
+fields:
+  date: 'Facture N[°o]\s+\d+\s+du\s+(\d{2}/\d{2}/\d{4})'
+  amount: 'Net à payer\s+(\d[\d\s]*[,.]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: ','

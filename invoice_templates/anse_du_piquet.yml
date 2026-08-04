@@ -1,0 +1,11 @@
+issuer: L'Anse du Piquet
+keywords:
+  - ANSE DU PIQUET
+  - l-anse-du-piquet
+fields:
+  date: 'Date:\s*(\d{2}/\d{2}/\d{4})'
+  amount: 'Net TTC à\s+(\d+[.,]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: '.'

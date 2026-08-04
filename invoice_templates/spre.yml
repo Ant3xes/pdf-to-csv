@@ -1,0 +1,11 @@
+issuer: SPRE
+keywords:
+  - www.spre.fr
+  - Rémunération Equitable
+fields:
+  date: "Date d'édition\\s*:\\s*(\\d{2}/\\d{2}/\\d{4})"
+  amount: 'Total TTC en €\s+(\d+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: ','

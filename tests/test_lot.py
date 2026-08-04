@@ -151,21 +151,61 @@ def test_lot_plusieurs_pdf_meme_fournisseur_restent_lignes_distinctes():
     assert all(l.statut == "OK" for l in lignes)
 
 
-def test_lot_facture_sans_template_a_verifier_sans_emetteur():
+def test_lot_facture_sans_template_filet_date_montant_a_verifier(tmp_path):
+    """Sans Template : filet générique préremplit date/montant, pas d'Émetteur (#29)."""
     lignes = process_lot(
         [CORPUS / "ACR 1 Juillet 26.pdf"],
-        TEMPLATES,
+        tmp_path,
     )
 
     assert len(lignes) == 1
     ligne = lignes[0]
     assert ligne.fichier == "ACR 1 Juillet 26.pdf"
     assert ligne.emetteur is None
+    assert ligne.date == "01/07/2026"
+    assert ligne.montant_ttc == "144,00"
     assert ligne.statut == "A_VERIFIER"
 
 
-def test_lot_detection_ambigue_a_verifier_sans_emetteur(tmp_path):
-    """≥2 templates natifs (#2) matchent → aucun appliqué, A_VERIFIER sans émetteur."""
+def test_lot_filet_generique_corpus_sans_template(tmp_path):
+    """Smoke Corpus sans YAML : Compagnie, SPRE, Youtrust via filet (#29)."""
+    compagnie = next(CORPUS.glob("Compagnie*Juillet*.pdf"))
+    lignes = process_lot(
+        [
+            compagnie,
+            CORPUS / "SPRE 1er Juillet 26.pdf",
+            CORPUS / "Youtrust 19 Juillet 26.pdf",
+        ],
+        tmp_path,
+    )
+
+    assert [l.emetteur for l in lignes] == [None, None, None]
+    assert all(l.statut == "A_VERIFIER" for l in lignes)
+    assert lignes[0].date == "20/07/2026"
+    assert lignes[0].montant_ttc == "272,72"
+    assert lignes[1].date == "01/07/2026"
+    assert lignes[1].montant_ttc == "629,71"
+    assert lignes[2].date == "19/07/2026"
+    assert lignes[2].montant_ttc == "13,20"
+
+
+def test_lot_filet_rien_extractible_champs_vides_a_verifier():
+    """Texte sans indices fiables → champs vides + A_VERIFIER (#29)."""
+    lignes = process_lot(
+        [FIXTURES / "rien_extractible.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date is None
+    assert ligne.montant_ttc is None
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_detection_ambigue_filet_sans_emetteur(tmp_path):
+    """≥2 templates matchent → aucun appliqué ; filet peut préremplir (#30)."""
     shutil.copy(TEMPLATES / "masse.yml", tmp_path / "masse.yml")
     shutil.copy(TEMPLATES / "aluplast.yml", tmp_path / "aluplast.yml")
 
@@ -178,8 +218,155 @@ def test_lot_detection_ambigue_a_verifier_sans_emetteur(tmp_path):
     ligne = lignes[0]
     assert ligne.fichier == "detection_ambigue_masse_aluplast.pdf"
     assert ligne.emetteur is None
+    assert ligne.date == "12/03/2026"
+    assert ligne.montant_ttc == "55,50"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_dates_ambigues_date_vide():
+    """Plusieurs dates libellées sans vainqueur → date vide (#30)."""
+    lignes = process_lot(
+        [FIXTURES / "filet_dates_ambigues.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur is None
     assert ligne.date is None
+    assert ligne.montant_ttc == "100,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_ht_vs_ttc_ne_prend_pas_ht():
+    """Concurrence HT vs TTC → le HT n'est pas retenu (#30)."""
+    lignes = process_lot(
+        [FIXTURES / "filet_ht_vs_ttc.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.montant_ttc == "100,00"
+    assert ligne.montant_ttc != "80,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_montants_ttc_ambigus_montant_vide():
+    """Plusieurs montants TTC/Net à payer distincts → montant vide (#30)."""
+    lignes = process_lot(
+        [FIXTURES / "filet_montants_ambigus.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.date == "01/07/2026"
     assert ligne.montant_ttc is None
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_acr_template_ok():
+    lignes = process_lot([CORPUS / "ACR 1 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "ACR"
+    assert ligne.date == "01/07/2026"
+    assert ligne.montant_ttc == "144,00"
+    assert ligne.statut == "OK"
+
+
+def test_lot_spre_template_ok():
+    lignes = process_lot([CORPUS / "SPRE 1er Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "SPRE"
+    assert ligne.date == "01/07/2026"
+    assert ligne.montant_ttc == "629,71"
+    assert ligne.statut == "OK"
+
+
+def test_lot_youtrust_template_ok():
+    lignes = process_lot([CORPUS / "Youtrust 19 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Youtrust"
+    assert ligne.date == "19/07/2026"
+    assert ligne.montant_ttc == "13,20"
+    assert ligne.statut == "OK"
+
+
+def test_lot_compagnie_deboucheurs_template_ok():
+    compagnie = next(CORPUS.glob("Compagnie*Juillet*.pdf"))
+    lignes = process_lot([compagnie], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Compagnie des Déboucheurs"
+    assert ligne.date == "20/07/2026"
+    assert ligne.montant_ttc == "272,72"
+    assert ligne.statut == "OK"
+
+
+def test_lot_domaine_verzier_template_ok():
+    lignes = process_lot([CORPUS / "Domaine Verzier 29 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Domaine Verzier"
+    assert ligne.date == "29/07/2026"
+    assert ligne.montant_ttc == "1147,92"
+    assert ligne.statut == "OK"
+
+
+def test_lot_valrhona_deux_pdf_meme_template_ok():
+    lignes = process_lot(
+        [
+            CORPUS / "Valrhona 1er Juillet 26.pdf",
+            CORPUS / "Valrhona 20 Juillet 26.pdf",
+        ],
+        TEMPLATES,
+    )
+    assert len(lignes) == 2
+    assert all(l.emetteur == "Valrhona" for l in lignes)
+    assert [l.date for l in lignes] == ["01/07/2026", "20/07/2026"]
+    assert [l.montant_ttc for l in lignes] == ["197,05", "197,05"]
+    assert all(l.statut == "OK" for l in lignes)
+
+
+def test_lot_anse_du_piquet_deux_pdf_meme_template_ok():
+    lignes = process_lot(
+        [
+            CORPUS / "L'Anse du Piquet 10 Juillet 26.pdf",
+            CORPUS / "L'Anse du Piquet 20 Juillet 26.pdf",
+        ],
+        TEMPLATES,
+    )
+    assert len(lignes) == 2
+    assert all(l.emetteur == "L'Anse du Piquet" for l in lignes)
+    assert [l.date for l in lignes] == ["10/07/2026", "20/07/2026"]
+    assert [l.montant_ttc for l in lignes] == ["175,55", "438,88"]
+    assert all(l.statut == "OK" for l in lignes)
+
+
+def test_lot_metro_deux_pdf_meme_template_ok():
+    metro_paths = sorted(CORPUS.glob("M*tro*Juillet*.pdf"))
+    assert len(metro_paths) == 2
+    lignes = process_lot(metro_paths, TEMPLATES)
+    assert len(lignes) == 2
+    assert all(l.emetteur == "Métro" for l in lignes)
+    assert [l.date for l in lignes] == ["01/07/2026", "08/07/2026"]
+    assert [l.montant_ttc for l in lignes] == ["1985,73", "2396,06"]
+    assert all(l.statut == "OK" for l in lignes)
+
+
+def test_lot_hotel_formule1_ocr_champs_mais_a_verifier():
+    formule = next(CORPUS.glob("Hotel Formule*"))
+    lignes = process_lot([formule], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == formule.name
+    assert ligne.emetteur == "Hotel Formule 1"
+    assert ligne.date == "05/07/2026"
+    assert ligne.montant_ttc == "34,00"
     assert ligne.statut == "A_VERIFIER"
 
 
