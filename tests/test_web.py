@@ -172,3 +172,96 @@ def test_api_lot_ne_persiste_pas_dans_corpus(client):
     upload_folder = Path(client.application.config["UPLOAD_FOLDER"])
     leftovers = list(upload_folder.rglob("*")) if upload_folder.exists() else []
     assert leftovers == [] or all(p.is_dir() for p in leftovers)
+
+
+def test_api_export_csv_format_fr_avec_corrections(client):
+    """POST /api/export télécharge le CSV FR du Lot, Corrections manuelles incluses (#13)."""
+    response = client.post(
+        "/api/export",
+        json={
+            "lignes": [
+                {
+                    "fichier": "inconnu.pdf",
+                    "emetteur": "Saisi à la main",
+                    "date": "01/08/2026",
+                    "montant_ttc": "12,50",
+                    "statut": "A_VERIFIER",
+                },
+                {
+                    "fichier": "Masse 22 Juillet 26.pdf",
+                    "emetteur": "Masse",
+                    "date": "22/07/2026",
+                    "montant_ttc": "793,31",
+                    "statut": "OK",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert "text/csv" in response.content_type
+    assert "attachment" in response.headers.get("Content-Disposition", "")
+    body = response.data.decode()
+    assert body == (
+        "fichier;emetteur;date;montant_ttc;statut\n"
+        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;A_VERIFIER\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;793,31;OK\n"
+    )
+    assert "raison" not in body.split("\n")[0]
+
+
+def test_api_export_une_ligne_par_facture_inclut_avoir(client):
+    """1 PDF = 1 ligne CSV, y compris Avoirs (#13)."""
+    response = client.post(
+        "/api/export",
+        json={
+            "lignes": [
+                {
+                    "fichier": "Masse 22 Juillet 26.pdf",
+                    "emetteur": "Masse",
+                    "date": "22/07/2026",
+                    "montant_ttc": "793,31",
+                    "statut": "OK",
+                },
+                {
+                    "fichier": "Hennequin AVOIR 10 Juillet 26.pdf",
+                    "emetteur": "Hennequin",
+                    "date": "10/07/2026",
+                    "montant_ttc": "50,00",
+                    "statut": "OK",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    rows = [r for r in response.data.decode().strip().split("\n") if r]
+    assert len(rows) == 3  # header + 2 factures
+    assert "Hennequin AVOIR 10 Juillet 26.pdf" in rows[2]
+
+
+def test_api_export_rejette_lot_vide(client):
+    response = client.post("/api/export", json={"lignes": []})
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert "error" in payload
+
+
+def test_page_accueil_contient_bouton_export(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert 'id="export-csv"' in html
+
+
+def test_static_js_exporte_lot_courant_via_api(client):
+    """Le bouton poste lotLignes (corrections incluses) vers /api/export (#13)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "/api/export" in js
+    assert "lotLignes" in js
+    assert "export-csv" in js

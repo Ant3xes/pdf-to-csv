@@ -5,9 +5,11 @@ import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
+from app.csv_export import export_csv
 from app.lot import process_lot
+from app.models import LigneFacture
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _DEFAULT_TEMPLATES_DIR = _PACKAGE_DIR.parent / "invoice_templates"
@@ -67,6 +69,36 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
             return jsonify({"lignes": [asdict(ligne) for ligne in lignes]})
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
+
+    @app.post("/api/export")
+    def api_export():
+        payload = request.get_json(silent=True) or {}
+        raw_lignes = payload.get("lignes")
+        if not isinstance(raw_lignes, list) or len(raw_lignes) == 0:
+            return jsonify({"error": "Aucune ligne à exporter."}), 400
+
+        lignes: list[LigneFacture] = []
+        for raw in raw_lignes:
+            if not isinstance(raw, dict) or "fichier" not in raw or "statut" not in raw:
+                return jsonify({"error": "Ligne de facture invalide."}), 400
+            lignes.append(
+                LigneFacture(
+                    fichier=str(raw["fichier"]),
+                    emetteur=raw.get("emetteur"),
+                    date=raw.get("date"),
+                    montant_ttc=raw.get("montant_ttc"),
+                    statut=str(raw["statut"]),
+                )
+            )
+
+        csv_body = export_csv(lignes)
+        return Response(
+            csv_body,
+            mimetype="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="factures.csv"',
+            },
+        )
 
     return app
 

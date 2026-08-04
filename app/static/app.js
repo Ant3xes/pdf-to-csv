@@ -4,6 +4,7 @@
   const indicator = document.getElementById("processing-indicator");
   const errorMessage = document.getElementById("error-message");
   const tableBody = document.querySelector("#results-table tbody");
+  const exportButton = document.getElementById("export-csv");
 
   const EDITABLE_FIELDS = ["emetteur", "date", "montant_ttc"];
   /** État éphémère du Lot en cours (Correction manuelle locale, hors Template). */
@@ -24,6 +25,10 @@
 
   function setProcessing(active) {
     indicator.hidden = !active;
+  }
+
+  function syncExportButton() {
+    exportButton.disabled = lotLignes.length === 0;
   }
 
   function corrigerLigneLocale(index, champ, valeur) {
@@ -66,6 +71,37 @@
       }
       tableBody.appendChild(tr);
     });
+    syncExportButton();
+  }
+
+  async function exportLotCsv() {
+    if (lotLignes.length === 0) {
+      return;
+    }
+    showError("");
+    try {
+      const response = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lignes: lotLignes }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        showError(payload.error || "Échec de l'export CSV.");
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "factures.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showError("Impossible de contacter le serveur.");
+    }
   }
 
   async function uploadLot(fileList) {
@@ -123,4 +159,9 @@
   fileInput.addEventListener("change", () => {
     uploadLot(fileInput.files);
   });
+
+  exportButton.addEventListener("click", () => {
+    exportLotCsv();
+  });
+  syncExportButton();
 })();
