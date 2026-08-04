@@ -68,11 +68,28 @@
     };
   }
 
+  function champsRemplis(ligne) {
+    return EDITABLE_FIELDS.every((key) => {
+      const value = ligne[key];
+      return value != null && String(value).trim() !== "";
+    });
+  }
+
+  function validerLigne(index) {
+    const ligne = lotLignes[index];
+    if (!ligne || ligne.statut !== "A_VERIFIER" || !champsRemplis(ligne)) {
+      return;
+    }
+    lotLignes[index] = { ...ligne, statut: "OK" };
+    renderLignes(lotLignes);
+  }
+
   function renderLignes(lignes) {
     lotLignes = lignes.map((ligne) => ({ ...ligne }));
     tableBody.replaceChildren();
     lotLignes.forEach((ligne, index) => {
       const tr = document.createElement("tr");
+      let validerBtn = null;
       for (const key of ["fichier", "emetteur", "date", "montant_ttc", "statut"]) {
         const td = document.createElement("td");
         if (key === "statut") {
@@ -85,6 +102,9 @@
           input.setAttribute("aria-label", FIELD_PLACEHOLDERS[key] || key);
           input.addEventListener("input", () => {
             corrigerLigneLocale(index, key, input.value || "");
+            if (validerBtn) {
+              validerBtn.disabled = !champsRemplis(lotLignes[index]);
+            }
           });
           td.appendChild(input);
         } else {
@@ -92,6 +112,19 @@
         }
         tr.appendChild(td);
       }
+      const tdAction = document.createElement("td");
+      if (ligne.statut === "A_VERIFIER") {
+        validerBtn = document.createElement("button");
+        validerBtn.type = "button";
+        validerBtn.className = "valider-ligne";
+        validerBtn.textContent = "Valider";
+        validerBtn.disabled = !champsRemplis(ligne);
+        validerBtn.addEventListener("click", () => {
+          validerLigne(index);
+        });
+        tdAction.appendChild(validerBtn);
+      }
+      tr.appendChild(tdAction);
       const tdPdf = document.createElement("td");
       const openBtn = document.createElement("button");
       openBtn.type = "button";

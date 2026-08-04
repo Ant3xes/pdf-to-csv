@@ -70,14 +70,64 @@ def test_static_js_correction_manuelle_ok_et_a_verifier_sans_template(client):
     # Champs corrigibles sans filtre sur le statut de la ligne
     assert 'EDITABLE_FIELDS = ["emetteur", "date", "montant_ttc"]' in js
     assert 'createElement("input")' in js
-    assert 'if (ligne.statut' not in js
-    assert 'statut === "OK"' not in js
+    # L'édition des champs n'est pas conditionnée au statut (Valider est séparé, #27)
+    assert "EDITABLE_FIELDS.includes(key)" in js
     # État local du Lot (Correction manuelle éphémère, sémantique #10)
     assert "lotLignes" in js
     assert "corrigerLigneLocale" in js
     # Aucun chemin UI vers les Templates
     assert "invoice_templates" not in js
     assert "/api/template" not in js
+
+
+def test_static_js_bouton_valider_a_verifier_vers_ok(client):
+    """Bouton Valider : À vérifier → OK si émetteur, date et montant remplis (#27)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "Valider" in js
+    assert "validerLigne" in js
+    assert "champsRemplis" in js
+    assert "A_VERIFIER" in js
+    assert 'statut: "OK"' in js
+    # Pas de création de Template
+    assert "invoice_templates" not in js
+    assert "/api/template" not in js
+
+
+def test_page_accueil_contient_colonne_valider(client):
+    """Colonne d'action pour Valider une Facture À vérifier (#27)."""
+    response = client.get("/")
+
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert "<th>Action</th>" in html or "Valider" in html
+
+
+def test_api_export_accepte_statut_ok_apres_validation_client(client):
+    """L'export CSV accepte le statut OK envoyé par le client après Valider (#27)."""
+    response = client.post(
+        "/api/export",
+        json={
+            "lignes": [
+                {
+                    "fichier": "inconnu.pdf",
+                    "emetteur": "Saisi à la main",
+                    "date": "01/08/2026",
+                    "montant_ttc": "12,50",
+                    "statut": "OK",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.data.decode()
+    assert body == (
+        "fichier;emetteur;date;montant_ttc;statut\n"
+        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;OK\n"
+    )
 
 
 def test_static_js_champs_edition_preremplis_ou_placeholder(client):

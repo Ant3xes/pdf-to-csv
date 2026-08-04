@@ -130,7 +130,8 @@ h1 {
   opacity: 0.85;
 }
 
-#results-table .ouvrir-pdf {
+#results-table .ouvrir-pdf,
+#results-table .valider-ligne {
   font: inherit;
   font-size: 0.85rem;
   padding: 0.35rem 0.65rem;
@@ -141,11 +142,13 @@ h1 {
   cursor: pointer;
 }
 
-#results-table .ouvrir-pdf:hover:not(:disabled) {
+#results-table .ouvrir-pdf:hover:not(:disabled),
+#results-table .valider-ligne:hover:not(:disabled) {
   background: rgba(15, 118, 110, 0.08);
 }
 
-#results-table .ouvrir-pdf:disabled {
+#results-table .ouvrir-pdf:disabled,
+#results-table .valider-ligne:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
