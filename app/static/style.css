@@ -103,18 +103,29 @@ h1 {
   letter-spacing: 0.03em;
 }
 
-#results-table td[contenteditable="true"] {
-  outline: none;
-  cursor: text;
+#results-table input[type="text"] {
+  width: 100%;
+  min-width: 6rem;
+  font: inherit;
+  color: var(--ink);
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  transition: background 0.12s ease, box-shadow 0.12s ease;
-}
-
-#results-table td[contenteditable="true"]:hover {
-  background: rgba(15, 118, 110, 0.06);
-}
-
-#results-table td[contenteditable="true"]:focus {
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+#results-table input[type="text"]:hover {
+  border-color: #a8a29e;
+}
+
+#results-table input[type="text"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+#results-table input[type="text"]::placeholder {
+  color: var(--muted);
+  opacity: 0.85;
 }

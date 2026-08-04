@@ -46,12 +46,14 @@ def test_static_js_gere_depot_et_tableau(client):
 
 
 def test_static_js_edition_inline_emetteur_date_montant(client):
-    """Émetteur, date et montant éditables inline pour toute ligne du Lot (#12)."""
+    """Émetteur, date et montant éditables via inputs lisibles (#25)."""
     response = client.get("/static/app.js")
 
     assert response.status_code == 200
     js = response.data.decode()
-    assert "contentEditable" in js or "contenteditable" in js
+    assert 'createElement("input")' in js
+    assert "contentEditable" not in js
+    assert "contenteditable" not in js
     for champ in ("emetteur", "date", "montant_ttc"):
         assert champ in js
     # fichier et statut restent en lecture seule côté édition
@@ -60,14 +62,14 @@ def test_static_js_edition_inline_emetteur_date_montant(client):
 
 
 def test_static_js_correction_manuelle_ok_et_a_verifier_sans_template(client):
-    """Correction manuelle du Lot : OK et À vérifier, jamais de Template (#12)."""
+    """Correction manuelle du Lot : OK et À vérifier, jamais de Template (#12/#25)."""
     response = client.get("/static/app.js")
 
     assert response.status_code == 200
     js = response.data.decode()
     # Champs corrigibles sans filtre sur le statut de la ligne
     assert 'EDITABLE_FIELDS = ["emetteur", "date", "montant_ttc"]' in js
-    assert "contentEditable" in js
+    assert 'createElement("input")' in js
     assert 'if (ligne.statut' not in js
     assert 'statut === "OK"' not in js
     # État local du Lot (Correction manuelle éphémère, sémantique #10)
@@ -76,6 +78,22 @@ def test_static_js_correction_manuelle_ok_et_a_verifier_sans_template(client):
     # Aucun chemin UI vers les Templates
     assert "invoice_templates" not in js
     assert "/api/template" not in js
+
+
+def test_static_js_champs_edition_preremplis_ou_placeholder(client):
+    """Valeurs extraites préremplies ; vides = placeholder, jamais inventées (#25)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "placeholder" in js
+    # Préremplissage depuis la valeur extraite (y compris A_VERIFIER / OCR)
+    assert "input.value" in js
+    # Champ vide : chaîne vide, pas de tiret inventé dans l'input
+    assert 'input.value = ""' in js or 'input.value = value' in js or "inputValue" in js
+    # Pas d'invention de données fictives dans les placeholders métier
+    assert "Inventé" not in js
+    assert "TODO" not in js
 
 
 def test_api_lot_un_pdf_retourne_ligne_facture(client):

@@ -7,6 +7,11 @@
   const exportButton = document.getElementById("export-csv");
 
   const EDITABLE_FIELDS = ["emetteur", "date", "montant_ttc"];
+  const FIELD_PLACEHOLDERS = {
+    emetteur: "Émetteur",
+    date: "JJ/MM/AAAA",
+    montant_ttc: "Montant TTC",
+  };
   /** État éphémère du Lot en cours (Correction manuelle locale, hors Template). */
   let lotLignes = [];
 
@@ -16,6 +21,10 @@
 
   function displayValue(value) {
     return value == null || value === "" ? "—" : String(value);
+  }
+
+  function inputValue(value) {
+    return value == null || value === "" ? "" : String(value);
   }
 
   function showError(message) {
@@ -53,17 +62,15 @@
         if (key === "statut") {
           td.textContent = statutLabel(ligne[key]);
         } else if (EDITABLE_FIELDS.includes(key)) {
-          td.textContent = displayValue(ligne[key]);
-          td.contentEditable = "true";
-          td.addEventListener("focus", () => {
-            if (lotLignes[index][key] == null || lotLignes[index][key] === "") {
-              td.textContent = "";
-            }
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = inputValue(ligne[key]);
+          input.placeholder = FIELD_PLACEHOLDERS[key] || "";
+          input.setAttribute("aria-label", FIELD_PLACEHOLDERS[key] || key);
+          input.addEventListener("input", () => {
+            corrigerLigneLocale(index, key, input.value || "");
           });
-          td.addEventListener("blur", () => {
-            corrigerLigneLocale(index, key, td.textContent || "");
-            td.textContent = displayValue(lotLignes[index][key]);
-          });
+          td.appendChild(input);
         } else {
           td.textContent = displayValue(ligne[key]);
         }
