@@ -118,3 +118,23 @@ h1 {
   background: rgba(255, 255, 255, 0.9);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
+
+#results-table .ouvrir-pdf {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.65rem;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#results-table .ouvrir-pdf:hover:not(:disabled) {
+  background: rgba(15, 118, 110, 0.08);
+}
+
+#results-table .ouvrir-pdf:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

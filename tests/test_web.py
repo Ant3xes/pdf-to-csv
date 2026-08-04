@@ -265,3 +265,30 @@ def test_static_js_exporte_lot_courant_via_api(client):
     assert "/api/export" in js
     assert "lotLignes" in js
     assert "export-csv" in js
+
+
+def test_page_accueil_contient_colonne_ouvrir_pdf(client):
+    """Chaque ligne du Lot propose une action « Ouvrir le PDF » (#26)."""
+    response = client.get("/")
+
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert "<th>PDF</th>" in html
+
+
+def test_static_js_ouvre_pdf_via_object_url_sans_endpoint(client):
+    """PDF du Lot ouvert via object URL navigateur, sans endpoint serveur (#26)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "Ouvrir le PDF" in js
+    assert "createObjectURL" in js
+    assert "revokeObjectURL" in js
+    assert "pdfUrls" in js
+    assert '"_blank"' in js
+    assert "disabled" in js
+    assert "PDF indisponible" in js
+    # Pas de nouvel endpoint pour servir les PDF
+    assert "/api/pdf" not in js
+    assert "/api/fichier" not in js

@@ -9,6 +9,8 @@
   const EDITABLE_FIELDS = ["emetteur", "date", "montant_ttc"];
   /** État éphémère du Lot en cours (Correction manuelle locale, hors Template). */
   let lotLignes = [];
+  /** filename → object URL des PDF déposés (éphémère, côté navigateur uniquement). */
+  const pdfUrls = new Map();
 
   function statutLabel(statut) {
     return statut === "A_VERIFIER" ? "À vérifier" : statut;
@@ -29,6 +31,20 @@
 
   function syncExportButton() {
     exportButton.disabled = lotLignes.length === 0;
+  }
+
+  function clearPdfUrls() {
+    for (const url of pdfUrls.values()) {
+      URL.revokeObjectURL(url);
+    }
+    pdfUrls.clear();
+  }
+
+  function rememberPdfFiles(files) {
+    clearPdfUrls();
+    for (const file of files) {
+      pdfUrls.set(file.name, URL.createObjectURL(file));
+    }
   }
 
   function corrigerLigneLocale(index, champ, valeur) {
@@ -69,6 +85,22 @@
         }
         tr.appendChild(td);
       }
+      const tdPdf = document.createElement("td");
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.className = "ouvrir-pdf";
+      openBtn.textContent = "Ouvrir le PDF";
+      const pdfUrl = pdfUrls.get(ligne.fichier);
+      if (pdfUrl) {
+        openBtn.addEventListener("click", () => {
+          window.open(pdfUrl, "_blank", "noopener,noreferrer");
+        });
+      } else {
+        openBtn.disabled = true;
+        openBtn.title = "PDF indisponible pour ce Lot";
+      }
+      tdPdf.appendChild(openBtn);
+      tr.appendChild(tdPdf);
       tableBody.appendChild(tr);
     });
     syncExportButton();
@@ -112,6 +144,7 @@
 
     showError("");
     setProcessing(true);
+    rememberPdfFiles(files);
 
     const formData = new FormData();
     for (const file of files) {
@@ -125,11 +158,13 @@
       });
       const payload = await response.json();
       if (!response.ok) {
+        clearPdfUrls();
         showError(payload.error || "Échec du traitement du lot.");
         return;
       }
       renderLignes(payload.lignes || []);
     } catch (err) {
+      clearPdfUrls();
       showError("Impossible de contacter le serveur.");
     } finally {
       setProcessing(false);
