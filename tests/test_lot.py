@@ -671,9 +671,10 @@ def test_lot_aluplast_et_valrhona_pas_avoir_malgre_cgv():
     ]
 
 
-def test_lot_sans_marqueur_clair_classifie_avoir_a_verifier():
+def test_lot_sans_marqueur_clair_classifie_facture():
+    """Sans indice avoir (titre/nom) → FACTURE par défaut (#38)."""
     lignes = process_lot([FIXTURES / "rien_extractible.pdf"], TEMPLATES)
-    assert lignes[0].type_document == TYPE_AVOIR
+    assert lignes[0].type_document == TYPE_FACTURE
     assert lignes[0].statut == "A_VERIFIER"
 
 

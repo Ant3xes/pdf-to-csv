@@ -389,34 +389,19 @@ _AVOIR_MARKERS_TEXT = (
     r"(?m)^CREDIT\b",
 )
 _AVOIR_MARKERS_FILENAME = (r"\bavoir\b",)
-_FACTURE_MARKERS_TEXT = (
-    r"(?m)^Facture\b",
-    r"(?m)^Facture\s+[A-Z0-9\-]",
-    r"facture\s+n[°o]",
-    r"n[°o]\s*facture",
-    r"date\s+facture",
-    r"date\s+de\s+la\s+facture",
-    r"date\s+de\s+facturation",
-    r"montant\s+de\s+la\s+facture",
-    r"net\s+[àa]\s+payer",
-    r"total\s+[àa]\s+payer",
-    r"a\s+payer\s+ttc",
-)
 
 
 def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
 
 
-def _classify_document(text: str, filename: str) -> tuple[str, bool]:
-    """Retourne (type_document, type_incertain). Incertain → AVOIR + statut À vérifier."""
+def _classify_document(text: str, filename: str) -> str:
+    """FACTURE ou AVOIR. En cas de doute → FACTURE (sauf AVOIR dans le titre / nom)."""
     if _matches_any(_ascii_fold(filename), _AVOIR_MARKERS_FILENAME):
-        return TYPE_AVOIR, False
+        return TYPE_AVOIR
     if _matches_any(text, _AVOIR_MARKERS_TEXT):
-        return TYPE_AVOIR, False
-    if _matches_any(text, _FACTURE_MARKERS_TEXT):
-        return TYPE_FACTURE, False
-    return TYPE_AVOIR, True
+        return TYPE_AVOIR
+    return TYPE_FACTURE
 
 
 def process_lot(
@@ -441,9 +426,7 @@ def process_lot(
         else:
             date, montant = _apply_generic_fallback(source.text)
 
-        type_document, type_incertain = _classify_document(source.text, path.name)
-        if type_incertain:
-            statut = STATUT_A_VERIFIER
+        type_document = _classify_document(source.text, path.name)
 
         lignes.append(
             LigneFacture(
