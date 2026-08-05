@@ -654,6 +654,23 @@ def test_lot_masse_classifie_facture():
     assert lignes[0].type_document == TYPE_FACTURE
 
 
+def test_lot_aluplast_et_valrhona_pas_avoir_malgre_cgv():
+    """Le verbe / mention CGV « avoir » ne doit pas classer une facture en AVOIR (#38)."""
+    lignes = process_lot(
+        [
+            CORPUS / "Aluplast 13 Juillet 26.pdf",
+            CORPUS / "Valrhona 1er Juillet 26.pdf",
+            CORPUS / "Valrhona 20 Juillet 26.pdf",
+        ],
+        TEMPLATES,
+    )
+    assert [ligne.type_document for ligne in lignes] == [
+        TYPE_FACTURE,
+        TYPE_FACTURE,
+        TYPE_FACTURE,
+    ]
+
+
 def test_lot_sans_marqueur_clair_classifie_avoir_a_verifier():
     lignes = process_lot([FIXTURES / "rien_extractible.pdf"], TEMPLATES)
     assert lignes[0].type_document == TYPE_AVOIR

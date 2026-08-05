@@ -377,8 +377,13 @@ def _apply_generic_fallback(text: str) -> tuple[str | None, str | None]:
     return _generic_date(text), _generic_amount(text)
 
 
+# Marqueurs documentaires uniquement — pas le verbe « avoir » ni les CGV
+# (« ni à un avoir ni… », « reconnaît avoir connaissance… »).
 _AVOIR_MARKERS_TEXT = (
-    r"\bavoir\b",
+    r"(?m)^AVOIR\b",
+    r"\bAVOIR\s+du\b",
+    r"\bAVOIR\s+n[°o]\b",
+    r"\bvotre\s+avoir\b",
     r"note\s+de\s+cr[eé]dit",
     r"r[eé]capitulatif\s+de\s+votre\s+avoir",
     r"(?m)^CREDIT\b",
