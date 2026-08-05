@@ -26,7 +26,12 @@ def test_page_accueil_contient_zone_depot_et_tableau(client):
     assert 'id="drop-zone"' in html
     assert 'id="file-input"' in html
     assert 'id="processing-indicator"' in html
-    assert 'id="results-table"' in html
+    assert 'id="factures-table"' in html
+    assert 'id="avoirs-table"' in html
+    assert 'id="avoirs-section"' in html
+    assert "Factures" in html
+    assert "Avoirs" in html
+    assert "Type" in html
     assert "fichier" in html.lower()
     assert "émetteur" in html.lower() or "emetteur" in html.lower()
     assert "montant" in html.lower()
@@ -117,6 +122,7 @@ def test_api_export_accepte_statut_ok_apres_validation_client(client):
                     "date": "01/08/2026",
                     "montant_ttc": "12,50",
                     "statut": "OK",
+                    "type_document": "FACTURE",
                 },
             ]
         },
@@ -125,8 +131,8 @@ def test_api_export_accepte_statut_ok_apres_validation_client(client):
     assert response.status_code == 200
     body = response.data.decode()
     assert body == (
-        "fichier;emetteur;date;montant_ttc;statut\n"
-        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;OK\n"
+        "fichier;emetteur;date;montant_ttc;statut;type\n"
+        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;OK;FACTURE\n"
     )
 
 
@@ -165,6 +171,7 @@ def test_api_lot_un_pdf_retourne_ligne_facture(client):
     assert ligne["date"] == "22/07/2026"
     assert ligne["montant_ttc"] == "793,31"
     assert ligne["statut"] == "OK"
+    assert ligne["type_document"] == "FACTURE"
 
 
 def test_api_lot_multi_pdf_inclut_avoir(client):
@@ -187,7 +194,16 @@ def test_api_lot_multi_pdf_inclut_avoir(client):
     assert len(lignes) == 2
     assert lignes[0]["fichier"] == "Masse 22 Juillet 26.pdf"
     assert lignes[1]["fichier"] == "Hennequin AVOIR 10 Juillet 26.pdf"
-    assert set(lignes[1]) >= {"fichier", "emetteur", "date", "montant_ttc", "statut"}
+    assert set(lignes[1]) >= {
+        "fichier",
+        "emetteur",
+        "date",
+        "montant_ttc",
+        "statut",
+        "type_document",
+    }
+    assert lignes[0]["type_document"] == "FACTURE"
+    assert lignes[1]["type_document"] == "AVOIR"
 
 
 def test_api_lot_accepte_extension_PDF_majuscule(client):
@@ -268,6 +284,7 @@ def test_api_export_csv_format_fr_avec_corrections(client):
                     "date": "01/08/2026",
                     "montant_ttc": "12,50",
                     "statut": "A_VERIFIER",
+                    "type_document": "AVOIR",
                 },
                 {
                     "fichier": "Masse 22 Juillet 26.pdf",
@@ -275,6 +292,7 @@ def test_api_export_csv_format_fr_avec_corrections(client):
                     "date": "22/07/2026",
                     "montant_ttc": "793,31",
                     "statut": "OK",
+                    "type_document": "FACTURE",
                 },
             ]
         },
@@ -283,11 +301,12 @@ def test_api_export_csv_format_fr_avec_corrections(client):
     assert response.status_code == 200
     assert "text/csv" in response.content_type
     assert "attachment" in response.headers.get("Content-Disposition", "")
+    assert 'filename="lot.csv"' in response.headers.get("Content-Disposition", "")
     body = response.data.decode()
     assert body == (
-        "fichier;emetteur;date;montant_ttc;statut\n"
-        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;A_VERIFIER\n"
-        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;793,31;OK\n"
+        "fichier;emetteur;date;montant_ttc;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;793,31;OK;FACTURE\n"
+        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;A_VERIFIER;AVOIR\n"
     )
     assert "raison" not in body.split("\n")[0]
 
@@ -304,6 +323,7 @@ def test_api_export_une_ligne_par_facture_inclut_avoir(client):
                     "date": "22/07/2026",
                     "montant_ttc": "793,31",
                     "statut": "OK",
+                    "type_document": "FACTURE",
                 },
                 {
                     "fichier": "Hennequin AVOIR 10 Juillet 26.pdf",
@@ -311,6 +331,7 @@ def test_api_export_une_ligne_par_facture_inclut_avoir(client):
                     "date": "10/07/2026",
                     "montant_ttc": "50,00",
                     "statut": "OK",
+                    "type_document": "AVOIR",
                 },
             ]
         },
@@ -318,8 +339,11 @@ def test_api_export_une_ligne_par_facture_inclut_avoir(client):
 
     assert response.status_code == 200
     rows = [r for r in response.data.decode().strip().split("\n") if r]
-    assert len(rows) == 3  # header + 2 factures
+    assert len(rows) == 3  # header + 2 lignes
+    assert rows[0].endswith(";type")
+    assert rows[1].endswith(";FACTURE")
     assert "Hennequin AVOIR 10 Juillet 26.pdf" in rows[2]
+    assert rows[2].endswith(";AVOIR")
 
 
 def test_api_export_rejette_lot_vide(client):
@@ -347,30 +371,57 @@ def test_static_js_exporte_lot_courant_via_api(client):
     assert "/api/export" in js
     assert "lotLignes" in js
     assert "export-csv" in js
+    assert "type_document" in js
+    assert "lot.csv" in js
+    assert "changerTypeDocument" in js
+    assert "factures-table" in js
+    assert "avoirs-table" in js
 
 
-def test_page_accueil_contient_colonne_ouvrir_pdf(client):
-    """Chaque ligne du Lot propose une action « Ouvrir le PDF » (#26)."""
+def test_page_accueil_contient_colonne_ouvrir_fichier(client):
+    """Chaque ligne du Lot propose une action « Ouvrir le fichier » (#26)."""
     response = client.get("/")
 
     assert response.status_code == 200
     html = response.data.decode()
-    assert "<th>PDF</th>" in html
+    assert "<th>Aperçu</th>" in html
 
 
-def test_static_js_ouvre_pdf_via_object_url_sans_endpoint(client):
-    """PDF du Lot ouvert via object URL navigateur, sans endpoint serveur (#26)."""
+def test_static_js_ouvre_fichier_via_object_url_sans_endpoint(client):
+    """Fichier du Lot ouvert via object URL navigateur, sans endpoint serveur (#26)."""
     response = client.get("/static/app.js")
 
     assert response.status_code == 200
     js = response.data.decode()
-    assert "Ouvrir le PDF" in js
+    assert "Ouvrir le fichier" in js
     assert "createObjectURL" in js
     assert "revokeObjectURL" in js
-    assert "pdfUrls" in js
+    assert "fileUrls" in js
+    assert "depositedFiles" in js
+    assert "heic2any" in js
     assert '"_blank"' in js
     assert "disabled" in js
-    assert "PDF indisponible" in js
-    # Pas de nouvel endpoint pour servir les PDF
+    assert "Fichier indisponible" in js
     assert "/api/pdf" not in js
     assert "/api/fichier" not in js
+
+
+def test_api_export_rejette_type_document_invalide(client):
+    response = client.post(
+        "/api/export",
+        json={
+            "lignes": [
+                {
+                    "fichier": "inconnu.pdf",
+                    "emetteur": "X",
+                    "date": "01/08/2026",
+                    "montant_ttc": "1,00",
+                    "statut": "OK",
+                    "type_document": "QUITTANCE",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+    assert "error" in response.get_json()

@@ -20,7 +20,7 @@ try:
 except ImportError:  # pragma: no cover - HEIC tests skip if missing
     pillow_heif = None
 
-from app.models import LigneFacture
+from app.models import TYPE_AVOIR, TYPE_FACTURE, LigneFacture
 
 STATUT_OK = "OK"
 STATUT_A_VERIFIER = "A_VERIFIER"
@@ -377,6 +377,43 @@ def _apply_generic_fallback(text: str) -> tuple[str | None, str | None]:
     return _generic_date(text), _generic_amount(text)
 
 
+_AVOIR_MARKERS_TEXT = (
+    r"\bavoir\b",
+    r"note\s+de\s+cr[eé]dit",
+    r"r[eé]capitulatif\s+de\s+votre\s+avoir",
+    r"(?m)^CREDIT\b",
+)
+_AVOIR_MARKERS_FILENAME = (r"\bavoir\b",)
+_FACTURE_MARKERS_TEXT = (
+    r"(?m)^Facture\b",
+    r"(?m)^Facture\s+[A-Z0-9\-]",
+    r"facture\s+n[°o]",
+    r"n[°o]\s*facture",
+    r"date\s+facture",
+    r"date\s+de\s+la\s+facture",
+    r"date\s+de\s+facturation",
+    r"montant\s+de\s+la\s+facture",
+    r"net\s+[àa]\s+payer",
+    r"total\s+[àa]\s+payer",
+    r"a\s+payer\s+ttc",
+)
+
+
+def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
+    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+
+def _classify_document(text: str, filename: str) -> tuple[str, bool]:
+    """Retourne (type_document, type_incertain). Incertain → AVOIR + statut À vérifier."""
+    if _matches_any(_ascii_fold(filename), _AVOIR_MARKERS_FILENAME):
+        return TYPE_AVOIR, False
+    if _matches_any(text, _AVOIR_MARKERS_TEXT):
+        return TYPE_AVOIR, False
+    if _matches_any(text, _FACTURE_MARKERS_TEXT):
+        return TYPE_FACTURE, False
+    return TYPE_AVOIR, True
+
+
 def process_lot(
     document_paths: list[Path | str],
     templates_dir: Path | str,
@@ -399,6 +436,10 @@ def process_lot(
         else:
             date, montant = _apply_generic_fallback(source.text)
 
+        type_document, type_incertain = _classify_document(source.text, path.name)
+        if type_incertain:
+            statut = STATUT_A_VERIFIER
+
         lignes.append(
             LigneFacture(
                 fichier=path.name,
@@ -406,6 +447,7 @@ def process_lot(
                 date=date,
                 montant_ttc=montant,
                 statut=statut,
+                type_document=type_document,
             )
         )
 
@@ -421,6 +463,7 @@ def corriger_ligne(
     emetteur: str | None = _UNSET,
     date: str | None = _UNSET,
     montant_ttc: str | None = _UNSET,
+    type_document: str | None = _UNSET,
 ) -> LigneFacture:
     """Correction manuelle éphémère : nouvelle ligne, templates intacts."""
     updates: dict[str, str | None] = {}
@@ -430,4 +473,6 @@ def corriger_ligne(
         updates["date"] = date
     if montant_ttc is not _UNSET:
         updates["montant_ttc"] = montant_ttc
+    if type_document is not _UNSET:
+        updates["type_document"] = type_document
     return replace(ligne, **updates)

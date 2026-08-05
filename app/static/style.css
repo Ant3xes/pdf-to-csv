@@ -81,21 +81,32 @@ h1 {
   cursor: not-allowed;
 }
 
-#results-table {
+.results-section {
+  margin-top: 1.5rem;
+}
+
+.results-section h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.results-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 1.5rem;
+  margin-top: 0.25rem;
   font-size: 0.95rem;
 }
 
-#results-table th,
-#results-table td {
+.results-table th,
+.results-table td {
   text-align: left;
   padding: 0.65rem 0.5rem;
   border-bottom: 1px solid var(--border);
 }
 
-#results-table th {
+.results-table th {
   font-weight: 600;
   color: var(--muted);
   font-size: 0.8rem;
@@ -103,7 +114,8 @@ h1 {
   letter-spacing: 0.03em;
 }
 
-#results-table input[type="text"] {
+.results-table input[type="text"],
+.results-table select {
   width: 100%;
   min-width: 6rem;
   font: inherit;
@@ -116,22 +128,24 @@ h1 {
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-#results-table input[type="text"]:hover {
+.results-table input[type="text"]:hover,
+.results-table select:hover {
   border-color: #a8a29e;
 }
 
-#results-table input[type="text"]:focus {
+.results-table input[type="text"]:focus,
+.results-table select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
 
-#results-table input[type="text"]::placeholder {
+.results-table input[type="text"]::placeholder {
   color: var(--muted);
   opacity: 0.85;
 }
 
-#results-table .ouvrir-pdf,
-#results-table .valider-ligne {
+.results-table .ouvrir-fichier,
+.results-table .valider-ligne {
   font: inherit;
   font-size: 0.85rem;
   padding: 0.35rem 0.65rem;
@@ -142,13 +156,13 @@ h1 {
   cursor: pointer;
 }
 
-#results-table .ouvrir-pdf:hover:not(:disabled),
-#results-table .valider-ligne:hover:not(:disabled) {
+.results-table .ouvrir-fichier:hover:not(:disabled),
+.results-table .valider-ligne:hover:not(:disabled) {
   background: rgba(15, 118, 110, 0.08);
 }
 
-#results-table .ouvrir-pdf:disabled,
-#results-table .valider-ligne:disabled {
+.results-table .ouvrir-fichier:disabled,
+.results-table .valider-ligne:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from app.csv_export import export_csv
 from app.lot import corriger_ligne, process_lot
+from app.models import TYPE_AVOIR, TYPE_FACTURE
 
 CORPUS = Path(__file__).resolve().parents[1] / "private_corpus"
 TEMPLATES = Path(__file__).resolve().parents[1] / "invoice_templates"
@@ -85,11 +86,13 @@ def test_lot_hennequin_facture_et_avoir_meme_template():
     assert facture.date == "20/07/2026"
     assert facture.montant_ttc == "1 847,62".replace(" ", "")
     assert facture.statut == "OK"
+    assert facture.type_document == TYPE_FACTURE
     assert avoir.fichier == "Hennequin AVOIR 10 Juillet 26.pdf"
     assert avoir.emetteur == "Hennequin"
     assert avoir.date == "10/07/2026"
     assert avoir.montant_ttc == "-1 424,78".replace(" ", "")
     assert avoir.statut == "OK"
+    assert avoir.type_document == TYPE_AVOIR
 
 
 def test_lot_veolia_avoir_extrait_credit_et_date():
@@ -105,6 +108,7 @@ def test_lot_veolia_avoir_extrait_credit_et_date():
     assert ligne.date == "22/07/2026"
     assert ligne.montant_ttc == "-1240,63"
     assert ligne.statut == "OK"
+    assert ligne.type_document == TYPE_AVOIR
 
 
 def test_lot_vives_eaux_factures_et_avoir_meme_template():
@@ -127,6 +131,11 @@ def test_lot_vives_eaux_factures_et_avoir_meme_template():
     assert [ligne.date for ligne in lignes] == ["10/07/2026", "20/07/2026", "20/07/2026"]
     assert [ligne.montant_ttc for ligne in lignes] == ["2604,65", "3775,26", "-39,00"]
     assert all(ligne.statut == "OK" for ligne in lignes)
+    assert [ligne.type_document for ligne in lignes] == [
+        TYPE_FACTURE,
+        TYPE_FACTURE,
+        TYPE_AVOIR,
+    ]
 
 
 def test_lot_plusieurs_pdf_meme_fournisseur_restent_lignes_distinctes():
@@ -496,8 +505,8 @@ def test_correction_manuelle_refletee_dans_export_sans_modifier_templates():
     )
 
     assert export_csv([corrigee]) == (
-        "fichier;emetteur;date;montant_ttc;statut\n"
-        "Masse 22 Juillet 26.pdf;Masse corrigé;01/01/2026;1,23;OK\n"
+        "fichier;emetteur;date;montant_ttc;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse corrigé;01/01/2026;1,23;OK;FACTURE\n"
     )
     assert {p.name: p.read_bytes() for p in TEMPLATES.glob("*.yml")} == templates_before
 
@@ -635,6 +644,24 @@ def test_correction_manuelle_partielle_ne_touche_que_les_champs_fournis():
     corrigee = corriger_ligne(lignes[0], montant_ttc="999,99")
 
     assert export_csv([corrigee]) == (
-        "fichier;emetteur;date;montant_ttc;statut\n"
-        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;999,99;OK\n"
+        "fichier;emetteur;date;montant_ttc;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;999,99;OK;FACTURE\n"
     )
+
+
+def test_lot_masse_classifie_facture():
+    lignes = process_lot([CORPUS / "Masse 22 Juillet 26.pdf"], TEMPLATES)
+    assert lignes[0].type_document == TYPE_FACTURE
+
+
+def test_lot_sans_marqueur_clair_classifie_avoir_a_verifier():
+    lignes = process_lot([FIXTURES / "rien_extractible.pdf"], TEMPLATES)
+    assert lignes[0].type_document == TYPE_AVOIR
+    assert lignes[0].statut == "A_VERIFIER"
+
+
+def test_correction_manuelle_type_refletee_dans_export():
+    lignes = process_lot([CORPUS / "Masse 22 Juillet 26.pdf"], TEMPLATES)
+    corrigee = corriger_ligne(lignes[0], type_document=TYPE_AVOIR)
+    csv = export_csv([corrigee])
+    assert ";AVOIR\n" in csv

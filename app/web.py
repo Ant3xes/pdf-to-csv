@@ -9,7 +9,7 @@ from flask import Flask, Response, jsonify, render_template, request
 
 from app.csv_export import export_csv
 from app.lot import is_supported_document, process_lot, supported_document_formats_label
-from app.models import LigneFacture
+from app.models import TYPES_DOCUMENT, LigneFacture
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _DEFAULT_TEMPLATES_DIR = _PACKAGE_DIR.parent / "invoice_templates"
@@ -80,8 +80,16 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
 
         lignes: list[LigneFacture] = []
         for raw in raw_lignes:
-            if not isinstance(raw, dict) or "fichier" not in raw or "statut" not in raw:
+            if (
+                not isinstance(raw, dict)
+                or "fichier" not in raw
+                or "statut" not in raw
+                or "type_document" not in raw
+            ):
                 return jsonify({"error": "Ligne de facture invalide."}), 400
+            type_document = str(raw["type_document"])
+            if type_document not in TYPES_DOCUMENT:
+                return jsonify({"error": "Type de document invalide."}), 400
             lignes.append(
                 LigneFacture(
                     fichier=str(raw["fichier"]),
@@ -89,6 +97,7 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
                     date=raw.get("date"),
                     montant_ttc=raw.get("montant_ttc"),
                     statut=str(raw["statut"]),
+                    type_document=type_document,
                 )
             )
 
@@ -97,7 +106,7 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
             csv_body,
             mimetype="text/csv; charset=utf-8",
             headers={
-                "Content-Disposition": 'attachment; filename="factures.csv"',
+                "Content-Disposition": 'attachment; filename="lot.csv"',
             },
         )
 

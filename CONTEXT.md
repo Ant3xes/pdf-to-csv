@@ -8,8 +8,8 @@ Application locale qui convertit des factures PDF multi-fournisseurs en un CSV e
 Correspond toujours exactement à un fichier déposé par l'utilisateur (PDF ou image JPG/PNG/HEIC) : 1 fichier = 1 facture = 1 ligne dans le CSV exporté. Jamais plusieurs factures distinctes dans un même fichier, jamais une facture répartie sur plusieurs fichiers. Les documents internes au PDF (bons de livraison, pages multiples) ne créent jamais de lignes CSV supplémentaires. Un **Avoir** est une facture au sens du pipeline (même règle 1 fichier = 1 ligne).
 
 **Avoir**:
-Document de crédit émis par un **Fournisseur** (remboursement, correction). Traité comme une **Facture** : même extraction (émetteur, date, montant TTC), même statut, même ligne CSV. Le montant TTC d'un avoir représente le crédit (pas une facture « positive » ordinaire).
-_Avoid_: Traiter l'avoir comme un type de document hors pipeline, ou l'exclure silencieusement.
+Document de crédit émis par un **Fournisseur** (remboursement, correction). Traité comme une **Facture** dans le pipeline (même extraction, même statut, même ligne CSV), mais identifié et présenté distinctement dans l'interface et l'export via le champ `type` (`AVOIR`). Le montant TTC d'un avoir représente le crédit (pas une facture « positive » ordinaire).
+_Avoid_: Traiter l'avoir comme un type hors pipeline, ou l'exclure silencieusement de l'export.
 
 **Émetteur**:
 Le nom de la société qui facture, tel qu'il figure dans le champ `issuer` du template qui a matché. C'est un libellé fixe associé au template — jamais une valeur extraite par regex depuis le texte de la facture. Sans template correspondant, l'émetteur n'a aucune valeur automatique et doit être saisi manuellement.
@@ -51,6 +51,7 @@ Au moins un des cas suivants suffit à marquer une facture "À vérifier" :
 4. La date extraite ne correspond à aucun format valide.
 5. Le montant extrait ne correspond à aucun nombre décimal plausible.
 6. Le texte source provient de l'OCR — systématique, indépendamment du succès apparent de l'extraction, par principe de prudence (l'OCR est structurellement moins fiable que le texte natif).
+7. Le type de document (Facture vs Avoir) n'est ni identifiable comme avoir ni comme facture avec certitude — la ligne est classée côté Avoirs pour validation manuelle.
 
 ## Exemple de dialogue
 

@@ -3,9 +3,16 @@ from __future__ import annotations
 import csv
 from io import StringIO
 
-from app.models import LigneFacture
+from app.models import TYPE_FACTURE, LigneFacture
 
-_COLUMNS = ("fichier", "emetteur", "date", "montant_ttc", "statut")
+_COLUMNS = ("fichier", "emetteur", "date", "montant_ttc", "statut", "type")
+
+
+def _sort_for_export(lignes: list[LigneFacture]) -> list[LigneFacture]:
+    return sorted(
+        lignes,
+        key=lambda ligne: 0 if ligne.type_document == TYPE_FACTURE else 1,
+    )
 
 
 def export_csv(lignes: list[LigneFacture]) -> str:
@@ -17,7 +24,7 @@ def export_csv(lignes: list[LigneFacture]) -> str:
         lineterminator="\n",
     )
     writer.writeheader()
-    for ligne in lignes:
+    for ligne in _sort_for_export(lignes):
         writer.writerow(
             {
                 "fichier": ligne.fichier,
@@ -25,6 +32,7 @@ def export_csv(lignes: list[LigneFacture]) -> str:
                 "date": ligne.date or "",
                 "montant_ttc": ligne.montant_ttc or "",
                 "statut": ligne.statut,
+                "type": ligne.type_document,
             }
         )
     return buffer.getvalue()
