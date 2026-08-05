@@ -59,7 +59,8 @@ GENERIC_DATE_FORMATS = [
     "%d.%m.%y",
 ]
 
-_AMOUNT_NUM = r"(-?\d[\d\s]*(?:[,.]\d{2}))"
+# Séparateurs de milliers : point/espace (EU) ou virgule/espace (US).
+_AMOUNT_NUM = r"(-?\d[\d.\s]*,\d{2}|-?\d[\d,\s]*\.\d{2})"
 _DATE_NUM = r"(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})"
 
 # Strong labeled date anchors (preferred over bare "le …").

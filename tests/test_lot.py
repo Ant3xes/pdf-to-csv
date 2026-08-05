@@ -385,6 +385,22 @@ def test_lot_altagel_scan_ocr_extrait_champs_mais_a_verifier():
     assert ligne.statut == "A_VERIFIER"
 
 
+def test_lot_altagel_montant_avec_separateur_milliers():
+    """1.008,33 ne doit pas être lu comme 100,00 (#montants milliers)."""
+    lignes = process_lot(
+        [CORPUS / "Altagel 20 Juillet 26.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "Altagel 20 Juillet 26.pdf"
+    assert ligne.emetteur == "Altagel"
+    assert ligne.date == "20/07/2026"
+    assert ligne.montant_ttc == "1008,33"
+    assert ligne.statut == "A_VERIFIER"
+
+
 def test_lot_pdf_sans_texte_natif_bascule_ocr_avant_extraction():
     lignes = process_lot(
         [FIXTURES / "scan_sans_texte.pdf"],
