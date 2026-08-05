@@ -4,7 +4,7 @@ keywords:
   - Récapitulatif de votre avoir
 fields:
   date: 'AVOIR du (\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4})'
-  amount: 'Solde en votre faveur\s*:\s*(\d[\d\s]*,\d{2})\s*€\s*TTC'
+  amount: 'Sous-total général\s+(\d[\d\s]*,\d{2})'
 options:
   date_formats:
     - '%d %B %Y'

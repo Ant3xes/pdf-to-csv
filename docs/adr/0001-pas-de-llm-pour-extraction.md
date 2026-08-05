@@ -1,6 +1,6 @@
 # Pas de LLM/IA pour l'extraction des champs de facture
 
-Le contexte : extraire émetteur, date et montant TTC depuis des factures PDF multi-fournisseurs aux layouts très variés — une tâche que des LLM récents géreraient facilement. Décision : extraction 100% déterministe (regex + templates par fournisseur, façon `invoice2data`), sans aucun appel à un LLM ou une API cloud d'extraction. Raison : les factures sont des données financières sensibles, et le coût/la dépendance à une API tierce (tokens, disponibilité, confidentialité) sont jugés inacceptables pour ce cas d'usage local et mono-utilisateur.
+Le contexte : extraire émetteur, date et montant HT depuis des factures PDF multi-fournisseurs aux layouts très variés — une tâche que des LLM récents géreraient facilement. Décision : extraction 100% déterministe (regex + templates par fournisseur, façon `invoice2data`), sans aucun appel à un LLM ou une API cloud d'extraction. Raison : les factures sont des données financières sensibles, et le coût/la dépendance à une API tierce (tokens, disponibilité, confidentialité) sont jugés inacceptables pour ce cas d'usage local et mono-utilisateur.
 
 ## Consequences
 

@@ -8,7 +8,7 @@ Application locale qui convertit des factures PDF multi-fournisseurs en un CSV e
 Correspond toujours exactement à un fichier déposé par l'utilisateur (PDF ou image JPG/PNG/HEIC) : 1 fichier = 1 facture = 1 ligne dans le CSV exporté. Jamais plusieurs factures distinctes dans un même fichier, jamais une facture répartie sur plusieurs fichiers. Les documents internes au PDF (bons de livraison, pages multiples) ne créent jamais de lignes CSV supplémentaires. Un **Avoir** est une facture au sens du pipeline (même règle 1 fichier = 1 ligne).
 
 **Avoir**:
-Document de crédit émis par un **Fournisseur** (remboursement, correction). Traité comme une **Facture** dans le pipeline (même extraction, même statut, même ligne CSV), mais identifié et présenté distinctement dans l'interface et l'export via le champ `type` (`AVOIR`). Le montant TTC d'un avoir représente le crédit (pas une facture « positive » ordinaire). Classification : marqueurs documentaires (titre / nom de fichier « AVOIR », « votre avoir », etc.) — en cas de doute, défaut **Facture**, jamais Avoir par défaut.
+Document de crédit émis par un **Fournisseur** (remboursement, correction). Traité comme une **Facture** dans le pipeline (même extraction, même statut, même ligne CSV), mais identifié et présenté distinctement dans l'interface et l'export via le champ `type` (`AVOIR`). Le montant HT d'un avoir représente le crédit (pas une facture « positive » ordinaire). Classification : marqueurs documentaires (titre / nom de fichier « AVOIR », « votre avoir », etc.) — en cas de doute, défaut **Facture**, jamais Avoir par défaut.
 _Avoid_: Traiter l'avoir comme un type hors pipeline, ou l'exclure silencieusement de l'export. Classer en Avoir sur le simple verbe « avoir » ou une mention CGV.
 
 **Émetteur**:
@@ -18,7 +18,7 @@ Le nom de la société qui facture, tel qu'il figure dans le champ `issuer` du t
 L'entité identifiée par les mots-clés de détection d'un template. Relation stricte 1:1 avec **Template** : un fournisseur a au plus un template actif à la fois. Si sa mise en page change, le template existant est édité/remplacé — pas de coexistence de plusieurs versions pour un même fournisseur. Plusieurs factures (ou avoirs) du même fournisseur dans un **Lot** ou dans le **Corpus** restent des lignes distinctes.
 
 **Template**:
-Fichier YAML associant un **Fournisseur** (issuer + mots-clés de détection) à des règles d'extraction (regex) pour les champs `date` et `amount` uniquement. Ajouter un fournisseur ne doit nécessiter que l'ajout d'un fichier template, sans toucher au code.
+Fichier YAML associant un **Fournisseur** (issuer + mots-clés de détection) à des règles d'extraction (regex) pour les champs `date` et `amount` uniquement. Le champ `amount` extrait le **montant HT** (hors taxes), jamais le TTC. Ajouter un fournisseur ne doit nécessiter que l'ajout d'un fichier template, sans toucher au code.
 
 **Statut**:
 Valeur binaire portée par chaque facture : `OK` ou `À vérifier` (encodée `A_VERIFIER` dans le CSV exporté — même statut, deux représentations). Le CSV n'expose pas la raison ; si elle est affichée, c'est uniquement dans l'interface.

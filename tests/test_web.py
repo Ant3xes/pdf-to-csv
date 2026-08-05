@@ -59,7 +59,7 @@ def test_static_js_edition_inline_emetteur_date_montant(client):
     assert 'createElement("input")' in js
     assert "contentEditable" not in js
     assert "contenteditable" not in js
-    for champ in ("emetteur", "date", "montant_ttc"):
+    for champ in ("emetteur", "date", "montant_ht"):
         assert champ in js
     # fichier et statut restent en lecture seule côté édition
     assert "fichier" in js
@@ -73,7 +73,7 @@ def test_static_js_correction_manuelle_ok_et_a_verifier_sans_template(client):
     assert response.status_code == 200
     js = response.data.decode()
     # Champs corrigibles sans filtre sur le statut de la ligne
-    assert 'EDITABLE_FIELDS = ["emetteur", "date", "montant_ttc"]' in js
+    assert 'EDITABLE_FIELDS = ["emetteur", "date", "montant_ht"]' in js
     assert 'createElement("input")' in js
     # L'édition des champs n'est pas conditionnée au statut (Valider est séparé, #27)
     assert "EDITABLE_FIELDS.includes(key)" in js
@@ -120,7 +120,7 @@ def test_api_export_accepte_statut_ok_apres_validation_client(client):
                     "fichier": "inconnu.pdf",
                     "emetteur": "Saisi à la main",
                     "date": "01/08/2026",
-                    "montant_ttc": "12,50",
+                    "montant_ht": "12,50",
                     "statut": "OK",
                     "type_document": "FACTURE",
                 },
@@ -131,7 +131,7 @@ def test_api_export_accepte_statut_ok_apres_validation_client(client):
     assert response.status_code == 200
     body = response.data.decode()
     assert body == (
-        "fichier;emetteur;date;montant_ttc;statut;type\n"
+        "fichier;emetteur;date;montant_ht;statut;type\n"
         "inconnu.pdf;Saisi à la main;01/08/2026;12,50;OK;FACTURE\n"
     )
 
@@ -169,7 +169,7 @@ def test_api_lot_un_pdf_retourne_ligne_facture(client):
     assert ligne["fichier"] == "Masse 22 Juillet 26.pdf"
     assert ligne["emetteur"] == "Masse"
     assert ligne["date"] == "22/07/2026"
-    assert ligne["montant_ttc"] == "793,31"
+    assert ligne["montant_ht"] == "751,95"
     assert ligne["statut"] == "OK"
     assert ligne["type_document"] == "FACTURE"
 
@@ -198,7 +198,7 @@ def test_api_lot_multi_pdf_inclut_avoir(client):
         "fichier",
         "emetteur",
         "date",
-        "montant_ttc",
+        "montant_ht",
         "statut",
         "type_document",
     }
@@ -282,7 +282,7 @@ def test_api_export_csv_format_fr_avec_corrections(client):
                     "fichier": "inconnu.pdf",
                     "emetteur": "Saisi à la main",
                     "date": "01/08/2026",
-                    "montant_ttc": "12,50",
+                    "montant_ht": "12,50",
                     "statut": "A_VERIFIER",
                     "type_document": "AVOIR",
                 },
@@ -290,7 +290,7 @@ def test_api_export_csv_format_fr_avec_corrections(client):
                     "fichier": "Masse 22 Juillet 26.pdf",
                     "emetteur": "Masse",
                     "date": "22/07/2026",
-                    "montant_ttc": "793,31",
+                    "montant_ht": "751,95",
                     "statut": "OK",
                     "type_document": "FACTURE",
                 },
@@ -304,8 +304,8 @@ def test_api_export_csv_format_fr_avec_corrections(client):
     assert 'filename="lot.csv"' in response.headers.get("Content-Disposition", "")
     body = response.data.decode()
     assert body == (
-        "fichier;emetteur;date;montant_ttc;statut;type\n"
-        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;793,31;OK;FACTURE\n"
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;751,95;OK;FACTURE\n"
         "inconnu.pdf;Saisi à la main;01/08/2026;12,50;A_VERIFIER;AVOIR\n"
     )
     assert "raison" not in body.split("\n")[0]
@@ -321,7 +321,7 @@ def test_api_export_une_ligne_par_facture_inclut_avoir(client):
                     "fichier": "Masse 22 Juillet 26.pdf",
                     "emetteur": "Masse",
                     "date": "22/07/2026",
-                    "montant_ttc": "793,31",
+                    "montant_ht": "751,95",
                     "statut": "OK",
                     "type_document": "FACTURE",
                 },
@@ -329,7 +329,7 @@ def test_api_export_une_ligne_par_facture_inclut_avoir(client):
                     "fichier": "Hennequin AVOIR 10 Juillet 26.pdf",
                     "emetteur": "Hennequin",
                     "date": "10/07/2026",
-                    "montant_ttc": "50,00",
+                    "montant_ht": "50,00",
                     "statut": "OK",
                     "type_document": "AVOIR",
                 },
@@ -415,7 +415,7 @@ def test_api_export_rejette_type_document_invalide(client):
                     "fichier": "inconnu.pdf",
                     "emetteur": "X",
                     "date": "01/08/2026",
-                    "montant_ttc": "1,00",
+                    "montant_ht": "1,00",
                     "statut": "OK",
                     "type_document": "QUITTANCE",
                 },

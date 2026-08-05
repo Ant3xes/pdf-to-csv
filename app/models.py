@@ -10,6 +10,6 @@ class LigneFacture:
     fichier: str
     emetteur: str | None
     date: str | None
-    montant_ttc: str | None
+    montant_ht: str | None
     statut: str
     type_document: str

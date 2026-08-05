@@ -104,14 +104,9 @@ _DATE_NEGATIVE_FOLDED = re.compile(
 )
 
 _GENERIC_AMOUNT_LABELS = (
-    rf"Total\s+T\.?\s*T\.?\s*C\.?(?:\s+(?:en\s+)?(?:€|EURO|EUR))?[\s:]*{_AMOUNT_NUM}",
-    rf"Montant\s+de\s+la\s+facture\s*{_AMOUNT_NUM}",
-    rf"Net\s+TTC\s+[àa]\s+{_AMOUNT_NUM}",
-    rf"Net\s+[àa]\s+payer\s*:?\s*{_AMOUNT_NUM}",
-    rf"NET\s+A\s+PAYER\s*:?\s*{_AMOUNT_NUM}",
-    rf"Total\s+[àa]\s+payer\s*{_AMOUNT_NUM}",
-    rf"Montant\s+TTC\s*:?\s*{_AMOUNT_NUM}",
-    rf"Montant\s*:?\s*{_AMOUNT_NUM}\s*(?:EUR|€)",
+    rf"Total\s+H\.?\s*T\.?(?:\s+(?:en\s+)?(?:€|EURO|EUR))?[\s:]*{_AMOUNT_NUM}",
+    rf"Net\s+H\.?\s*T\.?\s*{_AMOUNT_NUM}",
+    rf"Montant\s+H\.?\s*T\.?\s*:?\s*{_AMOUNT_NUM}",
 )
 
 
@@ -360,9 +355,9 @@ def _generic_amount(text: str) -> str | None:
     for pattern in _GENERIC_AMOUNT_LABELS:
         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
             label_prefix = text[max(0, match.start() - 30) : match.start()]
-            if re.search(r"(?:H\.?\s*T\.?|TVA|T\.V\.A)\s*$", label_prefix, re.I):
+            if re.search(r"(?:T\.?\s*T\.?\s*C\.?|TVA|T\.V\.A)\s*$", label_prefix, re.I):
                 continue
-            if re.search(r"Total\s+H\.?\s*T\.?\s*$", label_prefix, re.I):
+            if re.search(r"Total\s+T\.?\s*T\.?\s*C\.?\s*$", label_prefix, re.I):
                 continue
             raw = match.group(1)
             sep = "," if "," in raw else "."
@@ -373,7 +368,7 @@ def _generic_amount(text: str) -> str | None:
 
 
 def _apply_generic_fallback(text: str) -> tuple[str | None, str | None]:
-    """Filet déterministe : date + montant TTC, jamais d'Émetteur."""
+    """Filet déterministe : date + montant HT, jamais d'Émetteur."""
     return _generic_date(text), _generic_amount(text)
 
 
@@ -433,7 +428,7 @@ def process_lot(
                 fichier=path.name,
                 emetteur=emetteur,
                 date=date,
-                montant_ttc=montant,
+                montant_ht=montant,
                 statut=statut,
                 type_document=type_document,
             )
@@ -450,7 +445,7 @@ def corriger_ligne(
     *,
     emetteur: str | None = _UNSET,
     date: str | None = _UNSET,
-    montant_ttc: str | None = _UNSET,
+    montant_ht: str | None = _UNSET,
     type_document: str | None = _UNSET,
 ) -> LigneFacture:
     """Correction manuelle éphémère : nouvelle ligne, templates intacts."""
@@ -459,8 +454,8 @@ def corriger_ligne(
         updates["emetteur"] = emetteur
     if date is not _UNSET:
         updates["date"] = date
-    if montant_ttc is not _UNSET:
-        updates["montant_ttc"] = montant_ttc
+    if montant_ht is not _UNSET:
+        updates["montant_ht"] = montant_ht
     if type_document is not _UNSET:
         updates["type_document"] = type_document
     return replace(ligne, **updates)

@@ -4,7 +4,7 @@ keywords:
   - ATLAGEL
 fields:
   date: 'Date:(\d{2}/\d{2}/\d{2})'
-  amount: 'NET A PAYER\s+(-?\d[\d.\s]*,\d{2})'
+  amount: 'TOTAL HT\s+(\d[\d.\s]*,\d{2})\s*EUR'
 options:
   date_formats:
     - '%d/%m/%y'

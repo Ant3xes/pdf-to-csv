@@ -95,7 +95,7 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
                     fichier=str(raw["fichier"]),
                     emetteur=raw.get("emetteur"),
                     date=raw.get("date"),
-                    montant_ttc=raw.get("montant_ttc"),
+                    montant_ht=raw.get("montant_ht"),
                     statut=str(raw["statut"]),
                     type_document=type_document,
                 )

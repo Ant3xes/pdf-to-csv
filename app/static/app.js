@@ -11,11 +11,11 @@
 
   const TYPE_FACTURE = "FACTURE";
   const TYPE_AVOIR = "AVOIR";
-  const EDITABLE_FIELDS = ["emetteur", "date", "montant_ttc"];
+  const EDITABLE_FIELDS = ["emetteur", "date", "montant_ht"];
   const FIELD_PLACEHOLDERS = {
     emetteur: "Émetteur",
     date: "JJ/MM/AAAA",
-    montant_ttc: "Montant TTC",
+    montant_ht: "Montant HT",
   };
   /** État éphémère du Lot en cours (Correction manuelle locale, hors Template). */
   let lotLignes = [];
@@ -164,7 +164,7 @@
   function appendLigneRow(tableBody, ligne, index) {
     const tr = document.createElement("tr");
     let validerBtn = null;
-    for (const key of ["fichier", "emetteur", "date", "montant_ttc", "statut"]) {
+      for (const key of ["fichier", "emetteur", "date", "montant_ht", "statut"]) {
       const td = document.createElement("td");
       if (key === "statut") {
         td.textContent = statutLabel(ligne[key]);

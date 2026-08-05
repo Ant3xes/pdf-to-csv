@@ -17,7 +17,7 @@ L'utilisateur final n'est pas technique : l'interface doit être en drag & drop,
 - **Champs à extraire** :
   - Émetteur (nom de la société qui facture)
   - Date de la facture
-  - Montant Total TTC
+  - Montant Total HT
 - **Fallback** : si l'extraction échoue ou est incertaine, afficher la facture à l'utilisateur pour saisie manuelle (pas de blocage silencieux).
 - **Pas de LLM** : extraction basée sur règles/regex + templates par fournisseur (approche déterministe façon `invoice2data`) — voir [ADR-0001](./docs/adr/0001-pas-de-llm-pour-extraction.md).
 - **OCR en fallback** : si le PDF ne contient pas de texte natif exploitable, basculer automatiquement sur OCR (Tesseract) avant d'appliquer les mêmes règles d'extraction.
@@ -85,7 +85,7 @@ Inventaire (≈ 30 fichiers, juillet 2026) :
 
 Ces 5 cas restent le premier jeu de validation du pipeline (fichiers présents dans le corpus) :
 
-1. **Masse** — PDF natif, tableau multi-lignes, TVA multi-taux (5,5%), total TTC clairement libellé "TOTAL TTC en EURO".
+1. **Masse** — PDF natif, tableau multi-lignes, TVA multi-taux (5,5%), total HT clairement libellé "Total HT".
 2. **Domaine des Jumeaux** — PDF natif, une seule ligne produit, mentions légales collées au texte (peu d'espacement), total "Net à payer".
 3. **Devaud** — PDF natif mais texte extrait sans espaces entre mots par endroits, facture multi-pages avec plusieurs bons de livraison, total final "NET A PAYER".
 4. **Aluplast** — PDF natif, tableau + ligne "frais de port" séparée, bloc Total HT/TVA/TTC dense sans labels très explicites.
@@ -102,7 +102,7 @@ keywords:
   - ZA La Prévôté
 fields:
   date: (\d{2}/\d{2}/\d{2})\s*Conditions de règlement
-  amount: Total TTC.*?(\d+[,.]\d{2})
+  amount: Total HT.*?(\d+[,.]\d{2})
 options:
   currency: EUR
   date_formats:
@@ -119,30 +119,30 @@ Un template YAML doit être créé par fournisseur récurrent. Utiliser le mode 
    - Tenter l'extraction de texte natif.
    - Si le texte est vide ou insuffisant (< seuil de caractères), basculer sur OCR.
    - Détecter le fournisseur via les templates disponibles (mots-clés). Si plusieurs templates matchent à la fois (détection ambiguë), n'en appliquer aucun.
-   - Si un seul template correspond : reprendre l'émetteur depuis le champ `issuer` du template (valeur fixe, jamais extraite par regex), et extraire date + montant TTC via regex.
+   - Si un seul template correspond : reprendre l'émetteur depuis le champ `issuer` du template (valeur fixe, jamais extraite par regex), et extraire date + montant HT via regex.
    - Marquer la facture "À vérifier" si : aucun template ne correspond, détection ambiguë, un champ obligatoire est manquant, la date ne matche aucun format valide, le montant ne correspond à aucun nombre décimal plausible, **ou si le texte source provient de l'OCR** (systématique, indépendamment du succès de l'extraction).
 3. Afficher un tableau récapitulatif à l'utilisateur avec :
    - Nom du fichier
    - Émetteur détecté
    - Date détectée
-   - Montant TTC détecté
+   - Montant HT détecté
    - Statut (OK / À vérifier)
 4. Permettre la correction manuelle inline des champs marqués "À vérifier". Cette correction est éphémère : elle ne modifie que la ligne CSV de la facture concernée, jamais un template (créer un template à partir d'une correction est repoussé en V2 — voir "Hors scope").
-5. Bouton d'export : génère un fichier CSV avec une ligne par facture, colonnes : `fichier, emetteur, date, montant_ttc, statut`. Aucune persistance entre les lancements de l'application (pas d'historique, pas de base de données applicative — le dossier `private_corpus/` est un corpus de fichiers, pas un stockage de session).
+5. Bouton d'export : génère un fichier CSV avec une ligne par facture, colonnes : `fichier, emetteur, date, montant_ht, statut`. Aucune persistance entre les lancements de l'application (pas d'historique, pas de base de données applicative — le dossier `private_corpus/` est un corpus de fichiers, pas un stockage de session).
 
 ## Format de sortie CSV attendu
 
 ```csv
-fichier;emetteur;date;montant_ttc;statut
-Masse-22-Juillet-26.pdf;Masse;22/07/2026;793,31;OK
-Domaine-des-jumeaux-4-Juillet-26-2.pdf;Domaine des Jumeaux;04/07/2026;419,04;OK
-devaud-20-Juillet-26-3.pdf;Devaud;20/07/2026;615,68;OK
-Aluplast-13-Juillet-26-4.pdf;Aluplast;13/07/2026;323,40;OK
-Altagel-10-Juillet-26-5.pdf;Altagel;10/07/2026;382,26;A_VERIFIER
+fichier;emetteur;date;montant_ht;statut
+Masse-22-Juillet-26.pdf;Masse;22/07/2026;751,95;OK
+Domaine-des-jumeaux-4-Juillet-26-2.pdf;Domaine des Jumeaux;04/07/2026;349,20;OK
+devaud-20-Juillet-26-3.pdf;Devaud;20/07/2026;582,02;OK
+Aluplast-13-Juillet-26-4.pdf;Aluplast;13/07/2026;269,50;OK
+Altagel-10-Juillet-26-5.pdf;Altagel;10/07/2026;362,33;A_VERIFIER
 ```
 
 - Séparateur de champs : point-virgule (`;`) — convention CSV locale FR, reconnue nativement par Excel FR, et nécessaire car le séparateur décimal est la virgule.
-- Séparateur décimal : virgule (ex: `793,31`), cohérent avec Excel FR et la locale des factures.
+- Séparateur décimal : virgule (ex: `751,95`), cohérent avec Excel FR et la locale des factures.
 - Dates au format `JJ/MM/AAAA`.
 - Montants en nombre (pas de symbole €).
 - `statut` reste binaire (`OK` / `A_VERIFIER`) — pas de colonne "raison" dans le CSV exporté (voir `CONTEXT.md`).
@@ -162,7 +162,7 @@ Altagel-10-Juillet-26-5.pdf;Altagel;10/07/2026;382,26;A_VERIFIER
 
 - Le PDF "Altagel" est un scan pur : sans OCR, aucune extraction ne fonctionnera dessus. Vérifier la disponibilité de Tesseract sur la machine cible (binaire système, pas juste le wrapper Python).
 - Le PDF "Devaud" a du texte fusionné sans espaces par endroits : prévoir des regex tolérantes ou une normalisation du texte (insertion d'espaces avant les majuscules après un chiffre, etc.) si besoin.
-- Le PDF "Aluplast" a plusieurs montants proches (Total HT, TVA, Total TTC) sur des lignes denses : bien tester la regex du montant pour ne pas capturer le mauvais nombre.
+- Le PDF "Aluplast" a plusieurs montants proches (Total HT, TVA, Total TTC) sur des lignes denses : bien tester la regex du montant pour capturer le HT et non la TVA ni le TTC.
 - Les **avoirs** du corpus (Hennequin, Véolia eaux, Vives eaux) utilisent souvent des libellés différents (« AVOIR », totaux de crédit) : prévoir des regex / mots-clés adaptés dans le même template fournisseur, ou marquer "À vérifier" si le montant n'est pas fiable.
 - Tolérer la casse des extensions (`.pdf` / `.PDF`) à l'entrée.
 - Prévoir un seuil de confiance simple (ex: si la date extraite ne matche pas un format valide, ou si le montant ne correspond à aucun nombre décimal plausible, marquer automatiquement en "À vérifier").
@@ -170,7 +170,7 @@ Altagel-10-Juillet-26-5.pdf;Altagel;10/07/2026;382,26;A_VERIFIER
 
 ## Hors scope (V1)
 
-- Pas d'extraction des lignes de détail (articles/quantités) — uniquement les 3 champs globaux (émetteur, date, montant TTC).
+- Pas d'extraction des lignes de détail (articles/quantités) — uniquement les 3 champs globaux (émetteur, date, montant HT).
 - Pas d'intégration comptable/ERP directe.
 - Pas de solution cloud/API dans cette première version (uniquement si nécessaire dans un second temps si les templates s'avèrent insuffisants — voir [ADR-0001](./docs/adr/0001-pas-de-llm-pour-extraction.md)).
 - Pas de génération de template depuis l'UI à partir d'une correction manuelle (backlog V2) : en V1, corriger une facture ne crée ni ne modifie jamais de template.

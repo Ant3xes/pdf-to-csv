@@ -4,7 +4,7 @@ keywords:
   - scvalrhona
 fields:
   date: 'N[°o]\s+\d+\s+du\s+(\d{2}\.\d{2}\.\d{4})'
-  amount: 'Montant\s*:\s*(\d+[,.]\d{2})\s*EUR'
+  amount: '\d+[,.]\d{2}\s+(\d+[,.]\d{2})\s*\nMontant\s*:'
 options:
   date_formats:
     - '%d.%m.%Y'

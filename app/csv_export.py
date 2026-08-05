@@ -5,7 +5,7 @@ from io import StringIO
 
 from app.models import TYPE_FACTURE, LigneFacture
 
-_COLUMNS = ("fichier", "emetteur", "date", "montant_ttc", "statut", "type")
+_COLUMNS = ("fichier", "emetteur", "date", "montant_ht", "statut", "type")
 
 
 def _sort_for_export(lignes: list[LigneFacture]) -> list[LigneFacture]:
@@ -30,7 +30,7 @@ def export_csv(lignes: list[LigneFacture]) -> str:
                 "fichier": ligne.fichier,
                 "emetteur": ligne.emetteur or "",
                 "date": ligne.date or "",
-                "montant_ttc": ligne.montant_ttc or "",
+                "montant_ht": ligne.montant_ht or "",
                 "statut": ligne.statut,
                 "type": ligne.type_document,
             }
