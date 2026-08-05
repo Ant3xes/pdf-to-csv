@@ -8,7 +8,7 @@ from pathlib import Path
 from flask import Flask, Response, jsonify, render_template, request
 
 from app.csv_export import export_csv
-from app.lot import process_lot
+from app.lot import is_supported_document, process_lot, supported_document_formats_label
 from app.models import LigneFacture
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
@@ -41,18 +41,19 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
         work_dir = Path(tempfile.mkdtemp(dir=upload_root))
 
         try:
-            pdf_paths: list[Path] = []
+            document_paths: list[Path] = []
             for storage in uploads:
                 filename = Path(storage.filename or "").name
                 if not filename:
                     continue
-                if not filename.lower().endswith(".pdf"):
+                if not is_supported_document(filename):
                     return (
                         jsonify(
                             {
                                 "error": (
-                                    f"Le fichier «{filename}» n'est pas un PDF "
-                                    "exploitable. Seuls les fichiers .pdf sont acceptés."
+                                    f"Le fichier «{filename}» n'est pas un format "
+                                    "exploitable. "
+                                    f"Formats acceptés : {supported_document_formats_label()}."
                                 )
                             }
                         ),
@@ -60,12 +61,12 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
                     )
                 dest = work_dir / filename
                 storage.save(dest)
-                pdf_paths.append(dest)
+                document_paths.append(dest)
 
-            if not pdf_paths:
+            if not document_paths:
                 return jsonify({"error": "Aucun fichier reçu."}), 400
 
-            lignes = process_lot(pdf_paths, app.config["INVOICE_TEMPLATES_DIR"])
+            lignes = process_lot(document_paths, app.config["INVOICE_TEMPLATES_DIR"])
             return jsonify({"lignes": [asdict(ligne) for ligne in lignes]})
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)

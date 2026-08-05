@@ -11,11 +11,21 @@ import pdfplumber
 import pytesseract
 import yaml
 from pdf2image import convert_from_path
+from PIL import Image
+
+try:
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+except ImportError:  # pragma: no cover - HEIC tests skip if missing
+    pillow_heif = None
 
 from app.models import LigneFacture
 
 STATUT_OK = "OK"
 STATUT_A_VERIFIER = "A_VERIFIER"
+
+SUPPORTED_DOCUMENT_SUFFIXES = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".heic"})
 
 # Below this, native text is treated as empty/insufficient → OCR fallback.
 MIN_NATIVE_CHARS = 50
@@ -111,6 +121,14 @@ class SourceText:
     from_ocr: bool
 
 
+def is_supported_document(filename: str) -> bool:
+    return Path(filename).suffix.lower() in SUPPORTED_DOCUMENT_SUFFIXES
+
+
+def supported_document_formats_label() -> str:
+    return ", ".join(sorted(SUPPORTED_DOCUMENT_SUFFIXES))
+
+
 def _page_max_image_ratio(page) -> float:
     area = page.width * page.height
     if area <= 0:
@@ -142,7 +160,17 @@ def _extract_ocr_text(pdf_path: Path) -> str:
     )
 
 
-def _extract_text(pdf_path: Path) -> SourceText:
+def _extract_ocr_from_image(image: Image.Image) -> str:
+    return pytesseract.image_to_string(image, lang=OCR_LANG)
+
+
+def _extract_text_from_image(image_path: Path) -> SourceText:
+    with Image.open(image_path) as image:
+        text = _extract_ocr_from_image(image.convert("RGB"))
+    return SourceText(text=text, from_ocr=True)
+
+
+def _extract_text_from_pdf(pdf_path: Path) -> SourceText:
     with pdfplumber.open(pdf_path) as pdf:
         native = _extract_native_text(pdf)
         scanned = _is_scanned_pdf(pdf)
@@ -153,6 +181,23 @@ def _extract_text(pdf_path: Path) -> SourceText:
         return SourceText(text=native, from_ocr=scanned)
 
     return SourceText(text=_extract_ocr_text(pdf_path), from_ocr=True)
+
+
+def _extract_document_text(document_path: Path) -> SourceText:
+    suffix = document_path.suffix.lower()
+    if suffix == ".pdf":
+        return _extract_text_from_pdf(document_path)
+    if suffix in SUPPORTED_DOCUMENT_SUFFIXES - {".pdf"}:
+        if suffix == ".heic" and pillow_heif is None:
+            raise RuntimeError(
+                "Le support HEIC nécessite le paquet pillow-heif. "
+                "Installez-le via pip install pillow-heif."
+            )
+        return _extract_text_from_image(document_path)
+    raise ValueError(
+        f"Format non supporté pour «{document_path.name}». "
+        f"Formats acceptés : {supported_document_formats_label()}."
+    )
 
 
 def _load_templates(templates_dir: Path) -> list[dict]:
@@ -333,15 +378,15 @@ def _apply_generic_fallback(text: str) -> tuple[str | None, str | None]:
 
 
 def process_lot(
-    pdf_paths: list[Path | str],
+    document_paths: list[Path | str],
     templates_dir: Path | str,
 ) -> list[LigneFacture]:
     templates = _load_templates(Path(templates_dir))
     lignes: list[LigneFacture] = []
 
-    for pdf_path in pdf_paths:
-        path = Path(pdf_path)
-        source = _extract_text(path)
+    for document_path in document_paths:
+        path = Path(document_path)
+        source = _extract_document_text(path)
         matches = _matching_templates(source.text, templates)
 
         emetteur = date = montant = None

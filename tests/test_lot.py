@@ -502,6 +502,130 @@ def test_correction_manuelle_refletee_dans_export_sans_modifier_templates():
     assert {p.name: p.read_bytes() for p in TEMPLATES.glob("*.yml")} == templates_before
 
 
+def test_lot_image_png_template_connu_a_verifier():
+    """Image avec Template : champs extraits, statut A_VERIFIER (OCR)."""
+    lignes = process_lot(
+        [FIXTURES / "scan_sans_texte.png"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "scan_sans_texte.png"
+    assert ligne.emetteur == "Altagel"
+    assert ligne.date == "15/03/2026"
+    assert ligne.montant_ttc == "99,50"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_image_jpg_sans_template_filet_a_verifier(tmp_path):
+    """Image sans Template : filet date/montant, pas d'Émetteur."""
+    lignes = process_lot(
+        [FIXTURES / "detection_ambigue_masse_aluplast.jpg"],
+        tmp_path,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "detection_ambigue_masse_aluplast.jpg"
+    assert ligne.emetteur is None
+    assert ligne.date == "12/03/2026"
+    assert ligne.montant_ttc == "55,50"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_image_illisible_champs_vides_a_verifier():
+    lignes = process_lot(
+        [FIXTURES / "rien_extractible.png"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date is None
+    assert ligne.montant_ttc is None
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_heic_template_connu_a_verifier():
+    lignes = process_lot(
+        [FIXTURES / "scan_sans_texte.heic"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "scan_sans_texte.heic"
+    assert ligne.emetteur == "Altagel"
+    assert ligne.date == "15/03/2026"
+    assert ligne.montant_ttc == "99,50"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_mixte_pdf_natif_et_image_statuts_independants():
+    lignes = process_lot(
+        [
+            CORPUS / "Masse 22 Juillet 26.pdf",
+            FIXTURES / "scan_sans_texte.png",
+        ],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 2
+    pdf_ligne, image_ligne = lignes
+    assert pdf_ligne.fichier == "Masse 22 Juillet 26.pdf"
+    assert pdf_ligne.statut == "OK"
+    assert image_ligne.fichier == "scan_sans_texte.png"
+    assert image_ligne.statut == "A_VERIFIER"
+
+
+def test_lot_image_champ_manquant_a_verifier():
+    lignes = process_lot(
+        [FIXTURES / "champ_manquant_montant.png"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Masse"
+    assert ligne.date == "15/03/2026"
+    assert ligne.montant_ttc is None
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_image_detection_ambigue_filet_sans_emetteur(tmp_path):
+    """≥2 templates matchent sur image → aucun appliqué ; filet préremplit."""
+    shutil.copy(TEMPLATES / "masse.yml", tmp_path / "masse.yml")
+    shutil.copy(TEMPLATES / "aluplast.yml", tmp_path / "aluplast.yml")
+
+    lignes = process_lot(
+        [FIXTURES / "detection_ambigue_masse_aluplast.png"],
+        tmp_path,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "12/03/2026"
+    assert ligne.montant_ttc == "55,50"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_image_date_invalide_a_verifier():
+    lignes = process_lot(
+        [FIXTURES / "date_invalide.png"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Masse"
+    assert ligne.date is None
+    assert ligne.montant_ttc == "100,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
 def test_correction_manuelle_partielle_ne_touche_que_les_champs_fournis():
     """On peut corriger un seul champ ; les autres restent (#10)."""
     lignes = process_lot(

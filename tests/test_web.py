@@ -205,20 +205,34 @@ def test_api_lot_accepte_extension_PDF_majuscule(client):
     assert lignes[0]["fichier"] == "Hotel Formule 1 5 Juillet 26.PDF"
 
 
-def test_api_lot_rejette_non_pdf_avec_message_clair(client):
-    non_pdf = CORPUS / "Quittance [locataire] Juillet 26.heic"
-    with non_pdf.open("rb") as fh:
+def test_api_lot_accepte_image_png(client):
+    png_path = Path(__file__).resolve().parent / "fixtures" / "scan_sans_texte.png"
+    with png_path.open("rb") as fh:
         response = client.post(
             "/api/lot",
-            data={"files": (fh, non_pdf.name)},
+            data={"files": (fh, "scan_sans_texte.png")},
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 200
+    lignes = response.get_json()["lignes"]
+    assert len(lignes) == 1
+    assert lignes[0]["fichier"] == "scan_sans_texte.png"
+    assert lignes[0]["statut"] == "A_VERIFIER"
+
+
+def test_api_lot_rejette_format_non_supporte_avec_message_clair(client):
+    with (CORPUS / "Masse 22 Juillet 26.pdf").open("rb") as fh:
+        response = client.post(
+            "/api/lot",
+            data={"files": (fh, "facture.docx")},
             content_type="multipart/form-data",
         )
 
     assert response.status_code == 400
     payload = response.get_json()
     assert "error" in payload
-    assert "pdf" in payload["error"].lower()
-    assert non_pdf.name in payload["error"]
+    assert "facture.docx" in payload["error"]
     assert "lignes" not in payload
 
 

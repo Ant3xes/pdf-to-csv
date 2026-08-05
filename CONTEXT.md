@@ -5,7 +5,7 @@ Application locale qui convertit des factures PDF multi-fournisseurs en un CSV e
 ## Language
 
 **Facture**:
-Correspond toujours exactement à un fichier PDF déposé par l'utilisateur : 1 PDF = 1 facture = 1 ligne dans le CSV exporté. Jamais plusieurs factures distinctes dans un même PDF, jamais une facture répartie sur plusieurs PDF. Les documents internes au PDF (bons de livraison, pages multiples) ne créent jamais de lignes CSV supplémentaires. Un **Avoir** est une facture au sens du pipeline (même règle 1 fichier = 1 ligne).
+Correspond toujours exactement à un fichier déposé par l'utilisateur (PDF ou image JPG/PNG/HEIC) : 1 fichier = 1 facture = 1 ligne dans le CSV exporté. Jamais plusieurs factures distinctes dans un même fichier, jamais une facture répartie sur plusieurs fichiers. Les documents internes au PDF (bons de livraison, pages multiples) ne créent jamais de lignes CSV supplémentaires. Un **Avoir** est une facture au sens du pipeline (même règle 1 fichier = 1 ligne).
 
 **Avoir**:
 Document de crédit émis par un **Fournisseur** (remboursement, correction). Traité comme une **Facture** : même extraction (émetteur, date, montant TTC), même statut, même ligne CSV. Le montant TTC d'un avoir représente le crédit (pas une facture « positive » ordinaire).
@@ -27,7 +27,7 @@ Valeur binaire portée par chaque facture : `OK` ou `À vérifier` (encodée `A_
 Se produit quand les mots-clés de plusieurs templates matchent le même texte de facture. Dans ce cas, aucun template n'est appliqué — la facture est traitée comme si aucun template ne correspondait.
 
 **Lot**:
-L'ensemble des PDF déposés ensemble par l'utilisateur en une session de traitement. Purement éphémère : aucune persistance entre les lancements de l'application, pas d'historique applicatif, pas de base de données de session.
+L'ensemble des fichiers déposés ensemble par l'utilisateur en une session de traitement (PDF et/ou images). Purement éphémère : aucune persistance entre les lancements de l'application, pas d'historique applicatif, pas de base de données de session.
 
 **Corpus**:
 Jeu de documents réels fournis pour concevoir les templates et valider le pipeline. Ce n'est pas une base de données applicative : c'est un dossier de fichiers d'exemple sur disque. Le corpus de référence du projet est le dossier `private_corpus/`.
