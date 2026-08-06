@@ -81,6 +81,48 @@ h1 {
   cursor: not-allowed;
 }
 
+.export-block-message {
+  margin: 0.75rem 0 0;
+  color: #92400e;
+}
+
+.totaux-emetteurs {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--border);
+}
+
+.totaux-emetteurs h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.65rem;
+}
+
+.totaux-emetteurs-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.totaux-emetteur {
+  padding: 0.35rem 0;
+  font-weight: 600;
+}
+
+.totaux-emetteur.emetteur-manquant {
+  color: #b91c1c;
+}
+
+.results-table tr.groupe-emetteur td {
+  font-weight: 600;
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+}
+
 .results-section {
   margin-top: 1.5rem;
 }

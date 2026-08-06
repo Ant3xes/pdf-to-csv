@@ -128,24 +128,24 @@ Un template YAML doit être créé par fournisseur récurrent. Utiliser le mode 
    - Montant HT détecté
    - Statut (OK / À vérifier)
 4. Permettre la correction manuelle inline des champs marqués "À vérifier". Cette correction est éphémère : elle ne modifie que la ligne CSV de la facture concernée, jamais un template (créer un template à partir d'une correction est repoussé en V2 — voir "Hors scope").
-5. Bouton d'export : génère un fichier CSV avec une ligne par facture, colonnes : `fichier, emetteur, date, montant_ht, statut`. Aucune persistance entre les lancements de l'application (pas d'historique, pas de base de données applicative — le dossier `private_corpus/` est un corpus de fichiers, pas un stockage de session).
+5. Bouton d'export : génère un fichier CSV avec **une ligne par Émetteur** (total net HT), colonnes : `emetteur, montant_ht, nb_documents`. L'interface affiche le détail par facture. Aucune persistance entre les lancements de l'application (pas d'historique, pas de base de données applicative — le dossier `private_corpus/` est un corpus de fichiers, pas un stockage de session).
 
 ## Format de sortie CSV attendu
 
 ```csv
-fichier;emetteur;date;montant_ht;statut
-Masse-22-Juillet-26.pdf;Masse;22/07/2026;751,95;OK
-Domaine-des-jumeaux-4-Juillet-26-2.pdf;Domaine des Jumeaux;04/07/2026;349,20;OK
-devaud-20-Juillet-26-3.pdf;Devaud;20/07/2026;582,02;OK
-Aluplast-13-Juillet-26-4.pdf;Aluplast;13/07/2026;269,50;OK
-Altagel-10-Juillet-26-5.pdf;Altagel;10/07/2026;362,33;A_VERIFIER
+emetteur;montant_ht;nb_documents
+Masse;1578,39;3
+Aluplast;269,50;1
+Hennequin;400,80;2
 ```
 
+- Une ligne par **Émetteur** (total net HT, Factures + Avoirs confondus).
+- Export bloqué si une Facture n'a pas d'Émetteur ou est encore « À vérifier ».
 - Séparateur de champs : point-virgule (`;`) — convention CSV locale FR, reconnue nativement par Excel FR, et nécessaire car le séparateur décimal est la virgule.
 - Séparateur décimal : virgule (ex: `751,95`), cohérent avec Excel FR et la locale des factures.
-- Dates au format `JJ/MM/AAAA`.
+- Dates au format `JJ/MM/AAAA` dans l'interface (détail par Facture).
 - Montants en nombre (pas de symbole €).
-- `statut` reste binaire (`OK` / `A_VERIFIER`) — pas de colonne "raison" dans le CSV exporté (voir `CONTEXT.md`).
+- `nb_documents` : nombre de Factures (fichiers) agrégées pour cet Émetteur.
 
 ## Étapes de développement suggérées (pour Claude Code)
 

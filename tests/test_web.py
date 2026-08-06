@@ -29,13 +29,17 @@ def test_page_accueil_contient_zone_depot_et_tableau(client):
     assert 'id="factures-table"' in html
     assert 'id="avoirs-table"' in html
     assert 'id="avoirs-section"' in html
+    assert 'id="totaux-emetteurs"' in html
+    assert 'id="export-block-message"' in html
     assert "Factures" in html
     assert "Avoirs" in html
+    assert "Totaux par émetteur" in html
     assert "Type" in html
     assert "fichier" in html.lower()
     assert "émetteur" in html.lower() or "emetteur" in html.lower()
     assert "montant" in html.lower()
     assert "statut" in html.lower()
+    assert "lot_grouping.js" in html
     assert "app.js" in html
 
 
@@ -131,8 +135,8 @@ def test_api_export_accepte_statut_ok_apres_validation_client(client):
     assert response.status_code == 200
     body = response.data.decode()
     assert body == (
-        "fichier;emetteur;date;montant_ht;statut;type\n"
-        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;OK;FACTURE\n"
+        "emetteur;montant_ht;nb_documents\n"
+        "Saisi à la main;12,50;1\n"
     )
 
 
@@ -273,7 +277,7 @@ def test_api_lot_ne_persiste_pas_dans_corpus(client):
 
 
 def test_api_export_csv_format_fr_avec_corrections(client):
-    """POST /api/export télécharge le CSV FR du Lot, Corrections manuelles incluses (#13)."""
+    """POST /api/export télécharge le CSV agrégé du Lot, Corrections manuelles incluses (#13)."""
     response = client.post(
         "/api/export",
         json={
@@ -283,7 +287,7 @@ def test_api_export_csv_format_fr_avec_corrections(client):
                     "emetteur": "Saisi à la main",
                     "date": "01/08/2026",
                     "montant_ht": "12,50",
-                    "statut": "A_VERIFIER",
+                    "statut": "OK",
                     "type_document": "AVOIR",
                 },
                 {
@@ -304,15 +308,15 @@ def test_api_export_csv_format_fr_avec_corrections(client):
     assert 'filename="lot.csv"' in response.headers.get("Content-Disposition", "")
     body = response.data.decode()
     assert body == (
-        "fichier;emetteur;date;montant_ht;statut;type\n"
-        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;751,95;OK;FACTURE\n"
-        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;A_VERIFIER;AVOIR\n"
+        "emetteur;montant_ht;nb_documents\n"
+        "Masse;751,95;1\n"
+        "Saisi à la main;12,50;1\n"
     )
     assert "raison" not in body.split("\n")[0]
 
 
-def test_api_export_une_ligne_par_facture_inclut_avoir(client):
-    """1 PDF = 1 ligne CSV, y compris Avoirs (#13)."""
+def test_api_export_agrege_meme_emetteur(client):
+    """Plusieurs factures du même Émetteur → une ligne CSV agrégée (#42)."""
     response = client.post(
         "/api/export",
         json={
@@ -326,10 +330,85 @@ def test_api_export_une_ligne_par_facture_inclut_avoir(client):
                     "type_document": "FACTURE",
                 },
                 {
+                    "fichier": "Masse 15 Juillet 26.pdf",
+                    "emetteur": "Masse",
+                    "date": "15/07/2026",
+                    "montant_ht": "203,29",
+                    "statut": "OK",
+                    "type_document": "FACTURE",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.data.decode() == (
+        "emetteur;montant_ht;nb_documents\n"
+        "Masse;955,24;2\n"
+    )
+
+
+def test_api_export_rejette_a_verifier(client):
+    response = client.post(
+        "/api/export",
+        json={
+            "lignes": [
+                {
+                    "fichier": "inconnu.pdf",
+                    "emetteur": "Masse",
+                    "date": "01/08/2026",
+                    "montant_ht": "12,50",
+                    "statut": "A_VERIFIER",
+                    "type_document": "FACTURE",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+    assert "vérifier" in response.get_json()["error"].lower()
+
+
+def test_api_export_rejette_emetteur_manquant(client):
+    response = client.post(
+        "/api/export",
+        json={
+            "lignes": [
+                {
+                    "fichier": "inconnu.pdf",
+                    "emetteur": None,
+                    "date": "01/08/2026",
+                    "montant_ht": "12,50",
+                    "statut": "OK",
+                    "type_document": "FACTURE",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+    assert "émetteur" in response.get_json()["error"].lower()
+
+
+def test_api_export_total_net_facture_et_avoir(client):
+    """Total net par Émetteur inclut Factures et Avoirs (#42)."""
+    response = client.post(
+        "/api/export",
+        json={
+            "lignes": [
+                {
+                    "fichier": "Masse 22 Juillet 26.pdf",
+                    "emetteur": "Hennequin",
+                    "date": "22/07/2026",
+                    "montant_ht": "1751,30",
+                    "statut": "OK",
+                    "type_document": "FACTURE",
+                },
+                {
                     "fichier": "Hennequin AVOIR 10 Juillet 26.pdf",
                     "emetteur": "Hennequin",
                     "date": "10/07/2026",
-                    "montant_ht": "50,00",
+                    "montant_ht": "-1350,50",
                     "statut": "OK",
                     "type_document": "AVOIR",
                 },
@@ -338,12 +417,10 @@ def test_api_export_une_ligne_par_facture_inclut_avoir(client):
     )
 
     assert response.status_code == 200
-    rows = [r for r in response.data.decode().strip().split("\n") if r]
-    assert len(rows) == 3  # header + 2 lignes
-    assert rows[0].endswith(";type")
-    assert rows[1].endswith(";FACTURE")
-    assert "Hennequin AVOIR 10 Juillet 26.pdf" in rows[2]
-    assert rows[2].endswith(";AVOIR")
+    assert response.data.decode() == (
+        "emetteur;montant_ht;nb_documents\n"
+        "Hennequin;400,80;2\n"
+    )
 
 
 def test_api_export_rejette_lot_vide(client):
@@ -376,6 +453,19 @@ def test_static_js_exporte_lot_courant_via_api(client):
     assert "changerTypeDocument" in js
     assert "factures-table" in js
     assert "avoirs-table" in js
+    assert "LotGrouping" in js
+    assert "groupe-emetteur" in js
+    assert "export-block-message" in js
+
+
+def test_static_js_lot_grouping_expose_agregation(client):
+    response = client.get("/static/lot_grouping.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "agregerParEmetteur" in js
+    assert "raisonExportBloque" in js
+    assert "sans émetteur" in js
 
 
 def test_page_accueil_contient_colonne_ouvrir_fichier(client):

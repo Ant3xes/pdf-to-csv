@@ -5,10 +5,10 @@ Application locale qui convertit des factures PDF multi-fournisseurs en un CSV e
 ## Language
 
 **Facture**:
-Correspond toujours exactement à un fichier déposé par l'utilisateur (PDF ou image JPG/PNG/HEIC) : 1 fichier = 1 facture = 1 ligne dans le CSV exporté. Jamais plusieurs factures distinctes dans un même fichier, jamais une facture répartie sur plusieurs fichiers. Les documents internes au PDF (bons de livraison, pages multiples) ne créent jamais de lignes CSV supplémentaires. Un **Avoir** est une facture au sens du pipeline (même règle 1 fichier = 1 ligne).
+Correspond toujours exactement à un fichier déposé par l'utilisateur (PDF ou image JPG/PNG/HEIC) : 1 fichier = 1 facture = 1 ligne dans l'interface (détail éditable). Jamais plusieurs factures distinctes dans un même fichier, jamais une facture répartie sur plusieurs fichiers. Les documents internes au PDF (bons de livraison, pages multiples) ne créent jamais de lignes supplémentaires. Un **Avoir** est une facture au sens du pipeline (même règle 1 fichier = 1 ligne affichée).
 
 **Avoir**:
-Document de crédit émis par un **Fournisseur** (remboursement, correction). Traité comme une **Facture** dans le pipeline (même extraction, même statut, même ligne CSV), mais identifié et présenté distinctement dans l'interface et l'export via le champ `type` (`AVOIR`). Le montant HT d'un avoir représente le crédit (pas une facture « positive » ordinaire). Classification : marqueurs documentaires (titre / nom de fichier « AVOIR », « votre avoir », etc.) — en cas de doute, défaut **Facture**, jamais Avoir par défaut.
+Document de crédit émis par un **Fournisseur** (remboursement, correction). Traité comme une **Facture** dans le pipeline (même extraction, même statut), mais identifié et présenté distinctement dans l'interface via le champ `type` (`AVOIR`). Le montant HT d'un avoir représente le crédit (pas une facture « positive » ordinaire). À l'export CSV, les Avoirs contribuent au total net de leur **Émetteur** (montants négatifs additionnés aux Factures). Classification : marqueurs documentaires (titre / nom de fichier « AVOIR », « votre avoir », etc.) — en cas de doute, défaut **Facture**, jamais Avoir par défaut.
 _Avoid_: Traiter l'avoir comme un type hors pipeline, ou l'exclure silencieusement de l'export. Classer en Avoir sur le simple verbe « avoir » ou une mention CGV.
 
 **Émetteur**:
@@ -21,7 +21,7 @@ L'entité identifiée par les mots-clés de détection d'un template. Relation s
 Fichier YAML associant un **Fournisseur** (issuer + mots-clés de détection) à des règles d'extraction (regex) pour les champs `date` et `amount` uniquement. Le champ `amount` extrait le **montant HT** (hors taxes), jamais le TTC. Ajouter un fournisseur ne doit nécessiter que l'ajout d'un fichier template, sans toucher au code.
 
 **Statut**:
-Valeur binaire portée par chaque facture : `OK` ou `À vérifier` (encodée `A_VERIFIER` dans le CSV exporté — même statut, deux représentations). Le CSV n'expose pas la raison ; si elle est affichée, c'est uniquement dans l'interface.
+Valeur binaire portée par chaque facture : `OK` ou `À vérifier` (encodée `A_VERIFIER` en interne). Tant qu'une Facture du Lot est « À vérifier », l'export CSV est bloqué. La raison n'est pas exportée ; si elle est affichée, c'est uniquement dans l'interface.
 
 **Détection ambiguë**:
 Se produit quand les mots-clés de plusieurs templates matchent le même texte de facture. Dans ce cas, aucun template n'est appliqué — la facture est traitée comme si aucun template ne correspondait.
@@ -38,7 +38,7 @@ Document de loyer / occupation (ex. [locataire], [locataire]), distinct d'une **
 _Avoid_: Confondre quittance et facture ; ne pas créer de template « quittance » en V1.
 
 **Correction manuelle**:
-Modification ponctuelle d'un champ pour une facture du lot en cours. Son effet est limité à la ligne CSV de cette facture — elle ne crée ni ne modifie jamais un template.
+Modification ponctuelle d'un champ pour une facture du lot en cours. Son effet est pris en compte dans l'agrégation exportée (total par **Émetteur**) — elle ne crée ni ne modifie jamais un template.
 _Avoid_: Confondre avec la création/édition de template (action séparée, hors de l'UI en V1).
 
 ## Déclencheurs du statut "À vérifier"
@@ -61,4 +61,4 @@ Au moins un des cas suivants suffit à marquer une facture "À vérifier" :
 > **Dev** : Et un fournisseur jamais vu, sans aucun template ?
 > **Expert métier** : Pas d'émetteur auto-rempli, tu le tapes toi-même. Le template, si besoin, c'est un travail séparé — pas depuis l'UI, pas en V1.
 > **Dev** : Le fichier « Hennequin AVOIR » et la quittance [locataire] en .jpg, on les traite comment ?
-> **Expert métier** : L'avoir Hennequin, c'est une facture : une ligne CSV, même pipeline. La quittance [locataire], ce n'est pas une facture fournisseur — hors V1, même si elle est dans le corpus.
+> **Expert métier** : L'avoir Hennequin, c'est une facture : une ligne dans l'interface, même pipeline ; à l'export, son montant se déduit du total net de l'Émetteur. La quittance [locataire], ce n'est pas une facture fournisseur — hors V1, même si elle est dans le corpus.

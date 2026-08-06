@@ -3,6 +3,9 @@
   const fileInput = document.getElementById("file-input");
   const indicator = document.getElementById("processing-indicator");
   const errorMessage = document.getElementById("error-message");
+  const exportBlockMessage = document.getElementById("export-block-message");
+  const totauxEmetteursSection = document.getElementById("totaux-emetteurs");
+  const totauxEmetteursList = document.getElementById("totaux-emetteurs-list");
   const facturesCount = document.getElementById("factures-count");
   const avoirsCount = document.getElementById("avoirs-count");
   const facturesTableBody = document.querySelector("#factures-table tbody");
@@ -17,6 +20,7 @@
     date: "JJ/MM/AAAA",
     montant_ht: "Montant HT",
   };
+  const TABLE_COLUMN_COUNT = 8;
   /** État éphémère du Lot en cours (Correction manuelle locale, hors Template). */
   let lotLignes = [];
   /** filename → object URL pour ouvrir le fichier (éphémère, côté navigateur uniquement). */
@@ -84,8 +88,61 @@
     indicator.hidden = !active;
   }
 
+  function montantParEmetteurMap() {
+    return new Map(
+      LotGrouping.agregerParEmetteur(lotLignes).map((total) => [
+        total.emetteur,
+        total.montant_ht,
+      ]),
+    );
+  }
+
+  function renderTotauxBanner() {
+    const totaux = LotGrouping.agregerParEmetteur(lotLignes);
+    totauxEmetteursList.replaceChildren();
+    if (totaux.length === 0) {
+      totauxEmetteursSection.hidden = true;
+      return;
+    }
+    totauxEmetteursSection.hidden = false;
+    for (const total of totaux) {
+      const item = document.createElement("li");
+      item.className = "totaux-emetteur";
+      if (total.emetteur_manquant) {
+        item.classList.add("emetteur-manquant");
+      }
+      item.textContent = `${total.emetteur} — total net HT : ${total.montant_ht} (${total.nb_documents} doc.)`;
+      totauxEmetteursList.appendChild(item);
+    }
+  }
+
   function syncExportButton() {
-    exportButton.disabled = lotLignes.length === 0;
+    if (lotLignes.length === 0) {
+      exportButton.disabled = true;
+      exportBlockMessage.hidden = true;
+      exportBlockMessage.textContent = "";
+      return;
+    }
+    const raison = LotGrouping.raisonExportBloque(lotLignes);
+    exportButton.disabled = raison != null;
+    if (raison) {
+      exportBlockMessage.textContent = raison;
+      exportBlockMessage.hidden = false;
+    } else {
+      exportBlockMessage.hidden = true;
+      exportBlockMessage.textContent = "";
+    }
+  }
+
+  function refreshGroupingUi() {
+    renderTotauxBanner();
+    const totals = montantParEmetteurMap();
+    for (const row of document.querySelectorAll("tr.groupe-emetteur")) {
+      const emetteur = row.dataset.emetteur;
+      const montant = totals.get(emetteur) || "0,00";
+      row.querySelector("td").textContent = `${emetteur} — total net HT : ${montant}`;
+    }
+    syncExportButton();
   }
 
   function clearFileUrls() {
@@ -161,10 +218,21 @@
     renderLignes(lotLignes);
   }
 
+  function appendGroupeEmetteurRow(tableBody, emetteur, montantHt) {
+    const tr = document.createElement("tr");
+    tr.className = "groupe-emetteur";
+    tr.dataset.emetteur = emetteur;
+    const td = document.createElement("td");
+    td.colSpan = TABLE_COLUMN_COUNT;
+    td.textContent = `${emetteur} — total net HT : ${montantHt}`;
+    tr.appendChild(td);
+    tableBody.appendChild(tr);
+  }
+
   function appendLigneRow(tableBody, ligne, index) {
     const tr = document.createElement("tr");
     let validerBtn = null;
-      for (const key of ["fichier", "emetteur", "date", "montant_ht", "statut"]) {
+    for (const key of ["fichier", "emetteur", "date", "montant_ht", "statut"]) {
       const td = document.createElement("td");
       if (key === "statut") {
         td.textContent = statutLabel(ligne[key]);
@@ -176,6 +244,13 @@
         input.setAttribute("aria-label", FIELD_PLACEHOLDERS[key] || key);
         input.addEventListener("input", () => {
           corrigerLigneLocale(index, key, input.value || "");
+          if (key === "emetteur") {
+            renderLignes(lotLignes);
+            return;
+          }
+          if (key === "montant_ht") {
+            refreshGroupingUi();
+          }
           if (validerBtn) {
             validerBtn.disabled = !champsRemplis(lotLignes[index]);
           }
@@ -242,6 +317,16 @@
     tableBody.appendChild(tr);
   }
 
+  function renderGroupedTable(tableBody, entries, totals) {
+    const groups = LotGrouping.grouperLignesParEmetteur(entries);
+    for (const [emetteur, groupEntries] of groups) {
+      appendGroupeEmetteurRow(tableBody, emetteur, totals.get(emetteur) || "0,00");
+      for (const { ligne, index } of groupEntries) {
+        appendLigneRow(tableBody, ligne, index);
+      }
+    }
+  }
+
   function renderLignes(lignes) {
     lotLignes = lignes.map((ligne) => ({
       ...ligne,
@@ -250,25 +335,29 @@
     facturesTableBody.replaceChildren();
     avoirsTableBody.replaceChildren();
 
-    let factures = 0;
-    let avoirs = 0;
+    const totals = montantParEmetteurMap();
+    const factureEntries = [];
+    const avoirEntries = [];
     lotLignes.forEach((ligne, index) => {
+      const entry = { ligne, index };
       if (ligne.type_document === TYPE_AVOIR) {
-        appendLigneRow(avoirsTableBody, ligne, index);
-        avoirs += 1;
+        avoirEntries.push(entry);
       } else {
-        appendLigneRow(facturesTableBody, ligne, index);
-        factures += 1;
+        factureEntries.push(entry);
       }
     });
 
-    facturesCount.textContent = String(factures);
-    avoirsCount.textContent = String(avoirs);
-    syncExportButton();
+    renderGroupedTable(facturesTableBody, factureEntries, totals);
+    renderGroupedTable(avoirsTableBody, avoirEntries, totals);
+
+    facturesCount.textContent = String(factureEntries.length);
+    avoirsCount.textContent = String(avoirEntries.length);
+    refreshGroupingUi();
   }
 
   async function exportLotCsv() {
-    if (lotLignes.length === 0) {
+    const raison = LotGrouping.raisonExportBloque(lotLignes);
+    if (lotLignes.length === 0 || raison) {
       return;
     }
     showError("");

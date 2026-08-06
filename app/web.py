@@ -7,7 +7,7 @@ from pathlib import Path
 
 from flask import Flask, Response, jsonify, render_template, request
 
-from app.csv_export import export_csv
+from app.csv_export import export_csv, valider_export
 from app.lot import is_supported_document, process_lot, supported_document_formats_label
 from app.models import TYPES_DOCUMENT, LigneFacture
 
@@ -100,6 +100,10 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
                     type_document=type_document,
                 )
             )
+
+        erreur = valider_export(lignes)
+        if erreur:
+            return jsonify({"error": erreur}), 400
 
         csv_body = export_csv(lignes)
         return Response(

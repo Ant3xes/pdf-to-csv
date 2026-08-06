@@ -505,8 +505,8 @@ def test_correction_manuelle_refletee_dans_export_sans_modifier_templates():
     )
 
     assert export_csv([corrigee]) == (
-        "fichier;emetteur;date;montant_ht;statut;type\n"
-        "Masse 22 Juillet 26.pdf;Masse corrigé;01/01/2026;1,23;OK;FACTURE\n"
+        "emetteur;montant_ht;nb_documents\n"
+        "Masse corrigé;1,23;1\n"
     )
     assert {p.name: p.read_bytes() for p in TEMPLATES.glob("*.yml")} == templates_before
 
@@ -644,8 +644,8 @@ def test_correction_manuelle_partielle_ne_touche_que_les_champs_fournis():
     corrigee = corriger_ligne(lignes[0], montant_ht="999,99")
 
     assert export_csv([corrigee]) == (
-        "fichier;emetteur;date;montant_ht;statut;type\n"
-        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;999,99;OK;FACTURE\n"
+        "emetteur;montant_ht;nb_documents\n"
+        "Masse;999,99;1\n"
     )
 
 
@@ -682,4 +682,4 @@ def test_correction_manuelle_type_refletee_dans_export():
     lignes = process_lot([CORPUS / "Masse 22 Juillet 26.pdf"], TEMPLATES)
     corrigee = corriger_ligne(lignes[0], type_document=TYPE_AVOIR)
     csv = export_csv([corrigee])
-    assert ";AVOIR\n" in csv
+    assert csv == "emetteur;montant_ht;nb_documents\nMasse;751,95;1\n"

@@ -21,6 +21,13 @@
     <p id="processing-indicator" hidden aria-live="polite">Traitement en cours…</p>
     <p id="error-message" hidden role="alert"></p>
 
+    <p id="export-block-message" class="export-block-message" hidden role="status"></p>
+
+    <section id="totaux-emetteurs" class="totaux-emetteurs" hidden aria-labelledby="totaux-emetteurs-heading">
+      <h2 id="totaux-emetteurs-heading">Totaux par émetteur</h2>
+      <ul id="totaux-emetteurs-list" class="totaux-emetteurs-list"></ul>
+    </section>
+
     <p class="export-actions">
       <button type="button" id="export-csv" disabled>Exporter CSV</button>
     </p>
@@ -63,6 +70,7 @@
       </table>
     </section>
   </main>
+  <script src="{{ url_for('static', filename='lot_grouping.js') }}"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

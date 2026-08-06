@@ -18,20 +18,20 @@ def test_export_csv_format_excel_fr():
                 emetteur="Altagel",
                 date="10/07/2026",
                 montant_ht="382,26",
-                statut="A_VERIFIER",
+                statut="OK",
                 type_document=TYPE_FACTURE,
             ),
         ]
     )
 
     assert csv == (
-        "fichier;emetteur;date;montant_ht;statut;type\n"
-        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;793,31;OK;FACTURE\n"
-        "Altagel 10 Juillet 26.pdf;Altagel;10/07/2026;382,26;A_VERIFIER;FACTURE\n"
+        "emetteur;montant_ht;nb_documents\n"
+        "Altagel;382,26;1\n"
+        "Masse;793,31;1\n"
     )
 
 
-def test_export_csv_factures_avant_avoirs():
+def test_export_csv_total_net_facture_et_avoir():
     csv = export_csv(
         [
             LigneFacture(
@@ -54,7 +54,6 @@ def test_export_csv_factures_avant_avoirs():
     )
 
     rows = csv.strip().split("\n")
-    assert rows[0] == "fichier;emetteur;date;montant_ht;statut;type"
-    assert rows[1].startswith("Masse 22 Juillet 26.pdf;")
-    assert rows[2].startswith("Hennequin AVOIR 10 Juillet 26.pdf;")
-    assert rows[2].endswith(";AVOIR")
+    assert rows[0] == "emetteur;montant_ht;nb_documents"
+    assert rows[1] == "Hennequin;-1424,78;1"
+    assert rows[2] == "Masse;793,31;1"
