@@ -21,6 +21,7 @@ except ImportError:  # pragma: no cover - HEIC tests skip if missing
     pillow_heif = None
 
 from app.models import TYPE_AVOIR, TYPE_FACTURE, LigneFacture
+from app.runtime_paths import get_poppler_path
 
 STATUT_OK = "OK"
 STATUT_A_VERIFIER = "A_VERIFIER"
@@ -149,7 +150,11 @@ def _extract_native_text(pdf) -> str:
 
 
 def _extract_ocr_text(pdf_path: Path) -> str:
-    images = convert_from_path(pdf_path, dpi=OCR_DPI)
+    convert_kwargs: dict = {"dpi": OCR_DPI}
+    poppler_path = get_poppler_path()
+    if poppler_path:
+        convert_kwargs["poppler_path"] = poppler_path
+    images = convert_from_path(pdf_path, **convert_kwargs)
     return "\n".join(
         pytesseract.image_to_string(image, lang=OCR_LANG) for image in images
     )

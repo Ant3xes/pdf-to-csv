@@ -26,6 +26,29 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Lancer l'application
+
+### Application macOS (installation et mise à jour)
+
+Téléchargez la dernière version depuis [GitHub Releases](https://github.com/Ant3xes/pdf-to-csv/releases/latest) :
+
+1. Ouvrez le fichier `.dmg`
+2. Glissez **Convertisseur Factures** dans le dossier Applications
+3. Double-cliquez pour lancer l'application
+
+**Mise à jour** : même procédure — remplacez l'ancienne version par la nouvelle.
+
+### Développement (terminal)
+
+Avec les prérequis système installés :
+
+```bash
+source .venv/bin/activate
+python -m app.launcher
+```
+
+Pour builder un `.dmg` de release, voir [docs/build-macos-release.md](docs/build-macos-release.md).
+
 ## Tests
 
 ```bash
