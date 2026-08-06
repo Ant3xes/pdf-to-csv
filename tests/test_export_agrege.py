@@ -92,10 +92,16 @@ def test_export_csv_agrege_format_fr():
     )
 
     assert csv == (
+        "\ufeff"
         "emetteur;montant_ht;nb_documents\n"
         "Altagel;382,26;1\n"
         "Masse;793,31;1\n"
     )
+
+
+def test_export_csv_agrege_commence_par_bom_utf8():
+    csv = export_csv_agrege([_ligne()])
+    assert csv.startswith("\ufeff")
 
 
 def test_valider_export_rejette_lot_vide():
@@ -114,6 +120,19 @@ def test_valider_export_rejette_a_verifier():
 
     assert erreur is not None
     assert "vérifier" in erreur.lower()
+
+
+def test_valider_export_rejette_statut_invalide():
+    erreur = valider_export([_ligne(statut="VALIDE")])
+
+    assert erreur is not None
+    assert "statut" in erreur.lower()
+
+
+def test_valider_export_rejette_ok_sans_date_ou_montant():
+    assert valider_export([_ligne(date=None)]) is not None
+    assert valider_export([_ligne(montant_ht="")]) is not None
+    assert "montant" in (valider_export([_ligne(montant_ht=None)]) or "").lower()
 
 
 def test_valider_export_accepte_lot_ok():

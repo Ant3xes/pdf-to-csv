@@ -21,11 +21,20 @@ def valider_export(lignes: list[LigneFacture]) -> str | None:
     if not lignes:
         return "Aucune ligne à exporter."
     for ligne in lignes:
+        if ligne.statut not in ("OK", "A_VERIFIER"):
+            return "Export impossible : statut de facture invalide."
         if ligne.statut == "A_VERIFIER":
             return "Export impossible : des factures sont encore à vérifier."
         emetteur = (ligne.emetteur or "").strip()
         if not emetteur:
             return "Export impossible : une facture n'a pas d'émetteur."
+        date = (ligne.date or "").strip()
+        montant_ht = (ligne.montant_ht or "").strip()
+        if not date or not montant_ht:
+            return (
+                "Export impossible : une facture OK n'a pas de date "
+                "ou de montant HT."
+            )
     return None
 
 
@@ -67,4 +76,5 @@ def export_csv_agrege(lignes: list[LigneFacture]) -> str:
                 "nb_documents": str(total.nb_documents),
             }
         )
-    return buffer.getvalue()
+    # BOM UTF-8 pour ouverture directe correcte dans Excel FR (#18).
+    return "\ufeff" + buffer.getvalue()

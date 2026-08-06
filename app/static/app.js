@@ -335,6 +335,21 @@
     }
   }
 
+  function keepFilesForLignes(lignes) {
+    const kept = new Set((lignes || []).map((ligne) => ligne.fichier));
+    for (const name of [...depositedFiles.keys()]) {
+      if (kept.has(name)) {
+        continue;
+      }
+      depositedFiles.delete(name);
+      const url = fileUrls.get(name);
+      if (url) {
+        URL.revokeObjectURL(url);
+        fileUrls.delete(name);
+      }
+    }
+  }
+
   async function resolvePreviewUrl(filename) {
     let url = fileUrls.get(filename);
     if (url) {
@@ -657,7 +672,13 @@
         showError(payload.error || "Échec du traitement du lot.");
         return;
       }
-      renderLignes(payload.lignes || []);
+      const lignes = payload.lignes || [];
+      keepFilesForLignes(lignes);
+      renderLignes(lignes);
+      const warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+      if (warnings.length > 0) {
+        showError(warnings.join(" "));
+      }
     } catch (err) {
       clearFileUrls();
       showError("Impossible de contacter le serveur.");

@@ -25,6 +25,7 @@ def test_export_csv_format_excel_fr():
     )
 
     assert csv == (
+        "\ufeff"
         "emetteur;montant_ht;nb_documents\n"
         "Altagel;382,26;1\n"
         "Masse;793,31;1\n"
@@ -53,7 +54,8 @@ def test_export_csv_total_net_facture_et_avoir():
         ]
     )
 
-    rows = csv.strip().split("\n")
+    assert csv.startswith("\ufeff")
+    rows = csv.lstrip("\ufeff").strip().split("\n")
     assert rows[0] == "emetteur;montant_ht;nb_documents"
     assert rows[1] == "Hennequin;-1424,78;1"
     assert rows[2] == "Masse;793,31;1"

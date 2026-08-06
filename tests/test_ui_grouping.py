@@ -59,7 +59,7 @@ def test_export_reussi_apres_validation_ligne(live_server_url, page: Page):
 
     with page.expect_download() as download_info:
         page.click("#export-csv")
-    content = download_info.value.path().read_text(encoding="utf-8")
+    content = download_info.value.path().read_text(encoding="utf-8-sig")
     assert content == "emetteur;montant_ht;nb_documents\nAltagel;99,50;1\n"
 
 
@@ -118,5 +118,5 @@ def test_export_reussi_apres_lot_ok(live_server_url, page: Page):
     with page.expect_download() as download_info:
         page.click("#export-csv")
     download = download_info.value
-    content = download.path().read_text(encoding="utf-8")
+    content = download.path().read_text(encoding="utf-8-sig")
     assert content == "emetteur;montant_ht;nb_documents\nMasse;751,95;1\n"

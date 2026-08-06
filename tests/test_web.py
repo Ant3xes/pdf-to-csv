@@ -45,6 +45,8 @@ def test_static_js_gere_depot_et_tableau(client):
     assert "/api/lot" in js
     assert "processing-indicator" in js
     assert "À vérifier" in js
+    assert "warnings" in js
+    assert "keepFilesForLignes" in js
 
 
 def test_static_js_edition_inline_emetteur_date_montant(client):
@@ -129,6 +131,7 @@ def test_api_export_accepte_statut_ok_apres_validation_client(client):
     assert response.status_code == 200
     body = response.data.decode()
     assert body == (
+        "\ufeff"
         "emetteur;montant_ht;nb_documents\n"
         "Saisi à la main;12,50;1\n"
     )
@@ -250,6 +253,28 @@ def test_api_lot_rejette_format_non_supporte_avec_message_clair(client):
     assert "lignes" not in payload
 
 
+def test_api_lot_mixte_valide_et_non_supporte_avertit(client):
+    """PDF valide traité ; .docx rejeté avec warning, sans échec global (#16)."""
+    pdf_path = CORPUS / "Masse 22 Juillet 26.pdf"
+    with pdf_path.open("rb") as fh_pdf, pdf_path.open("rb") as fh_bad:
+        response = client.post(
+            "/api/lot",
+            data={
+                "files": [
+                    (fh_pdf, "Masse 22 Juillet 26.pdf"),
+                    (fh_bad, "facture.docx"),
+                ]
+            },
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert len(payload["lignes"]) == 1
+    assert payload["lignes"][0]["fichier"] == "Masse 22 Juillet 26.pdf"
+    assert any("facture.docx" in w for w in payload["warnings"])
+
+
 def test_api_lot_ne_persiste_pas_dans_corpus(client):
     """Le Lot est éphémère : private_corpus/ n'est pas un stockage de session."""
     before = {p.name for p in CORPUS.iterdir()}
@@ -302,11 +327,12 @@ def test_api_export_csv_format_fr_avec_corrections(client):
     assert 'filename="lot.csv"' in response.headers.get("Content-Disposition", "")
     body = response.data.decode()
     assert body == (
+        "\ufeff"
         "emetteur;montant_ht;nb_documents\n"
         "Masse;751,95;1\n"
         "Saisi à la main;12,50;1\n"
     )
-    assert "raison" not in body.split("\n")[0]
+    assert "raison" not in body.lstrip("\ufeff").split("\n")[0]
 
 
 def test_api_export_agrege_meme_emetteur(client):
@@ -337,6 +363,7 @@ def test_api_export_agrege_meme_emetteur(client):
 
     assert response.status_code == 200
     assert response.data.decode() == (
+        "\ufeff"
         "emetteur;montant_ht;nb_documents\n"
         "Masse;955,24;2\n"
     )
@@ -412,9 +439,34 @@ def test_api_export_total_net_facture_et_avoir(client):
 
     assert response.status_code == 200
     assert response.data.decode() == (
+        "\ufeff"
         "emetteur;montant_ht;nb_documents\n"
         "Hennequin;400,80;2\n"
     )
+
+
+def test_api_export_rejette_ok_sans_date_ou_montant(client):
+    """Export refuse un statut OK client si date/montant manquent (#17)."""
+    response = client.post(
+        "/api/export",
+        json={
+            "lignes": [
+                {
+                    "fichier": "inconnu.pdf",
+                    "emetteur": "Masse",
+                    "date": None,
+                    "montant_ht": "12,50",
+                    "statut": "OK",
+                    "type_document": "FACTURE",
+                },
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+    assert "date" in response.get_json()["error"].lower() or "montant" in response.get_json()[
+        "error"
+    ].lower()
 
 
 def test_api_export_rejette_lot_vide(client):

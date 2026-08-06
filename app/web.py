@@ -42,32 +42,34 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
 
         try:
             document_paths: list[Path] = []
+            warnings: list[str] = []
             for storage in uploads:
                 filename = Path(storage.filename or "").name
                 if not filename:
                     continue
                 if not is_supported_document(filename):
-                    return (
-                        jsonify(
-                            {
-                                "error": (
-                                    f"Le fichier «{filename}» n'est pas un format "
-                                    "exploitable. "
-                                    f"Formats acceptés : {supported_document_formats_label()}."
-                                )
-                            }
-                        ),
-                        400,
+                    warnings.append(
+                        f"Le fichier «{filename}» n'est pas un format "
+                        "exploitable. "
+                        f"Formats acceptés : {supported_document_formats_label()}."
                     )
+                    continue
                 dest = work_dir / filename
                 storage.save(dest)
                 document_paths.append(dest)
 
             if not document_paths:
+                if warnings:
+                    return jsonify({"error": " ".join(warnings)}), 400
                 return jsonify({"error": "Aucun fichier reçu."}), 400
 
             lignes = process_lot(document_paths, app.config["INVOICE_TEMPLATES_DIR"])
-            return jsonify({"lignes": [asdict(ligne) for ligne in lignes]})
+            return jsonify(
+                {
+                    "lignes": [asdict(ligne) for ligne in lignes],
+                    "warnings": warnings,
+                }
+            )
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
 
