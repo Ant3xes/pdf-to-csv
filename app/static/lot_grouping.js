@@ -21,6 +21,16 @@
     return value.toFixed(2).replace(".", ",");
   }
 
+  function compareEmetteurs(a, b) {
+    if (a === EMETTEUR_MANQUANT && b !== EMETTEUR_MANQUANT) {
+      return -1;
+    }
+    if (b === EMETTEUR_MANQUANT && a !== EMETTEUR_MANQUANT) {
+      return 1;
+    }
+    return a.localeCompare(b, "fr");
+  }
+
   function agregerParEmetteur(lignes) {
     const totals = new Map();
     for (const ligne of lignes) {
@@ -30,7 +40,7 @@
       totals.set(cle, { total: prev.total + amount, count: prev.count + 1 });
     }
     return Array.from(totals.entries())
-      .sort(([a], [b]) => a.localeCompare(b, "fr"))
+      .sort(([a], [b]) => compareEmetteurs(a, b))
       .map(([emetteur, { total, count }]) => ({
         emetteur,
         montant_ht: formaterMontantHt(total),
@@ -63,7 +73,7 @@
       }
       groups.get(cle).push(entry);
     }
-    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b, "fr"));
+    return Array.from(groups.entries()).sort(([a], [b]) => compareEmetteurs(a, b));
   }
 
   global.LotGrouping = {

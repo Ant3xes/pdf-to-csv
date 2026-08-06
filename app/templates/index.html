@@ -23,51 +23,24 @@
 
     <p id="export-block-message" class="export-block-message" hidden role="status"></p>
 
-    <section id="totaux-emetteurs" class="totaux-emetteurs" hidden aria-labelledby="totaux-emetteurs-heading">
-      <h2 id="totaux-emetteurs-heading">Totaux par émetteur</h2>
-      <ul id="totaux-emetteurs-list" class="totaux-emetteurs-list"></ul>
-    </section>
-
     <p class="export-actions">
       <button type="button" id="export-csv" disabled>Exporter CSV</button>
     </p>
 
-    <section id="factures-section" class="results-section" aria-labelledby="factures-heading">
-      <h2 id="factures-heading">Factures (<span id="factures-count">0</span>)</h2>
-      <table id="factures-table" class="results-table">
-        <thead>
-          <tr>
-            <th>Fichier</th>
-            <th>Émetteur</th>
-            <th>Date</th>
-            <th>Montant HT</th>
-            <th>Statut</th>
-            <th>Type</th>
-            <th>Action</th>
-            <th>Aperçu</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <section id="documents-section" class="results-section" aria-labelledby="documents-heading">
+      <h2 id="documents-heading">
+        Documents
+        (<span id="factures-count">0</span> factures, <span id="avoirs-count">0</span> avoirs)
+      </h2>
+      <div id="issuer-groups" class="issuer-groups"></div>
     </section>
 
-    <section id="avoirs-section" class="results-section" aria-labelledby="avoirs-heading">
-      <h2 id="avoirs-heading">Avoirs (<span id="avoirs-count">0</span>)</h2>
-      <table id="avoirs-table" class="results-table">
-        <thead>
-          <tr>
-            <th>Fichier</th>
-            <th>Émetteur</th>
-            <th>Date</th>
-            <th>Montant HT</th>
-            <th>Statut</th>
-            <th>Type</th>
-            <th>Action</th>
-            <th>Aperçu</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <section id="totaux-emetteurs" class="totaux-emetteurs" hidden aria-labelledby="totaux-emetteurs-heading">
+      <div class="totaux-emetteurs-header">
+        <h2 id="totaux-emetteurs-heading">Synthèse par émetteur</h2>
+        <p class="totaux-emetteurs-subtitle">Totaux nets HT du lot en cours</p>
+      </div>
+      <ul id="totaux-emetteurs-list" class="totaux-emetteurs-list"></ul>
     </section>
   </main>
   <script src="{{ url_for('static', filename='lot_grouping.js') }}"></script>

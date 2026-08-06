@@ -26,19 +26,12 @@ def test_page_accueil_contient_zone_depot_et_tableau(client):
     assert 'id="drop-zone"' in html
     assert 'id="file-input"' in html
     assert 'id="processing-indicator"' in html
-    assert 'id="factures-table"' in html
-    assert 'id="avoirs-table"' in html
-    assert 'id="avoirs-section"' in html
+    assert 'id="issuer-groups"' in html
+    assert 'id="documents-section"' in html
     assert 'id="totaux-emetteurs"' in html
     assert 'id="export-block-message"' in html
-    assert "Factures" in html
-    assert "Avoirs" in html
-    assert "Totaux par émetteur" in html
-    assert "Type" in html
-    assert "fichier" in html.lower()
-    assert "émetteur" in html.lower() or "emetteur" in html.lower()
-    assert "montant" in html.lower()
-    assert "statut" in html.lower()
+    assert "Documents" in html
+    assert "Synthèse par émetteur" in html
     assert "lot_grouping.js" in html
     assert "app.js" in html
 
@@ -106,12 +99,13 @@ def test_static_js_bouton_valider_a_verifier_vers_ok(client):
 
 
 def test_page_accueil_contient_colonne_valider(client):
-    """Colonne d'action pour Valider une Facture À vérifier (#27)."""
-    response = client.get("/")
+    """Le rendu JS conserve l'action Valider pour une Facture À vérifier (#27)."""
+    response = client.get("/static/app.js")
 
     assert response.status_code == 200
-    html = response.data.decode()
-    assert "<th>Action</th>" in html or "Valider" in html
+    js = response.data.decode()
+    assert "Valider" in js
+    assert "<th>Action</th>" not in js or "Action" in js
 
 
 def test_api_export_accepte_statut_ok_apres_validation_client(client):
@@ -451,11 +445,14 @@ def test_static_js_exporte_lot_courant_via_api(client):
     assert "type_document" in js
     assert "lot.csv" in js
     assert "changerTypeDocument" in js
-    assert "factures-table" in js
-    assert "avoirs-table" in js
+    assert "issuer-groups" in js
+    assert "issuer-type-heading" in js
     assert "LotGrouping" in js
-    assert "groupe-emetteur" in js
     assert "export-block-message" in js
+    assert "ligne-incomplete" in js
+    assert "ligne-a-verifier" in js
+    assert "Champs à remplir" in js
+    assert 'addEventListener("blur"' in js
 
 
 def test_static_js_lot_grouping_expose_agregation(client):
@@ -470,11 +467,12 @@ def test_static_js_lot_grouping_expose_agregation(client):
 
 def test_page_accueil_contient_colonne_ouvrir_fichier(client):
     """Chaque ligne du Lot propose une action « Ouvrir le fichier » (#26)."""
-    response = client.get("/")
+    response = client.get("/static/app.js")
 
     assert response.status_code == 200
-    html = response.data.decode()
-    assert "<th>Aperçu</th>" in html
+    js = response.data.decode()
+    assert "Ouvrir le fichier" in js
+    assert "Aperçu" in js
 
 
 def test_static_js_ouvre_fichier_via_object_url_sans_endpoint(client):

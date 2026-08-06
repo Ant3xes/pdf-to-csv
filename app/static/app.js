@@ -8,8 +8,7 @@
   const totauxEmetteursList = document.getElementById("totaux-emetteurs-list");
   const facturesCount = document.getElementById("factures-count");
   const avoirsCount = document.getElementById("avoirs-count");
-  const facturesTableBody = document.querySelector("#factures-table tbody");
-  const avoirsTableBody = document.querySelector("#avoirs-table tbody");
+  const issuerGroups = document.getElementById("issuer-groups");
   const exportButton = document.getElementById("export-csv");
 
   const TYPE_FACTURE = "FACTURE";
@@ -97,6 +96,23 @@
     );
   }
 
+  function formaterMontantAffichage(montant) {
+    const [entier, decimales = "00"] = String(montant).split(",");
+    const entierFormate = entier.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return `${entierFormate},${decimales}`;
+  }
+
+  function champsManquants(ligne) {
+    return EDITABLE_FIELDS.filter((key) => {
+      const value = ligne[key];
+      return value == null || String(value).trim() === "";
+    });
+  }
+
+  function labelChamp(key) {
+    return FIELD_PLACEHOLDERS[key] || key;
+  }
+
   function renderTotauxBanner() {
     const totaux = LotGrouping.agregerParEmetteur(lotLignes);
     totauxEmetteursList.replaceChildren();
@@ -107,11 +123,54 @@
     totauxEmetteursSection.hidden = false;
     for (const total of totaux) {
       const item = document.createElement("li");
-      item.className = "totaux-emetteur";
+      item.className = "totaux-emetteur-card";
       if (total.emetteur_manquant) {
         item.classList.add("emetteur-manquant");
       }
-      item.textContent = `${total.emetteur} — total net HT : ${total.montant_ht} (${total.nb_documents} doc.)`;
+      const montantNumerique = LotGrouping.parseMontantHt(total.montant_ht);
+      if (montantNumerique < 0) {
+        item.classList.add("montant-negatif");
+      }
+
+      const nom = document.createElement("p");
+      nom.className = "totaux-emetteur-nom";
+      nom.textContent = total.emetteur;
+
+      const montant = document.createElement("p");
+      montant.className = "totaux-emetteur-montant";
+      montant.textContent = `${formaterMontantAffichage(total.montant_ht)} €`;
+
+      const meta = document.createElement("p");
+      meta.className = "totaux-emetteur-meta";
+      const labelDoc = total.nb_documents > 1 ? "documents" : "document";
+      meta.textContent = `${total.nb_documents} ${labelDoc}`;
+
+      item.append(nom, montant, meta);
+      const lignesEmetteur = lotLignes.filter(
+        (ligne) => LotGrouping.cleEmetteur(ligne.emetteur) === total.emetteur,
+      );
+      const manques = new Set();
+      for (const ligne of lignesEmetteur) {
+        for (const champ of champsManquants(ligne)) {
+          manques.add(labelChamp(champ));
+        }
+      }
+      if (manques.size > 0) {
+        item.classList.add("incomplet");
+        const warning = document.createElement("div");
+        warning.className = "totaux-emetteur-warning";
+
+        const warningTitle = document.createElement("p");
+        warningTitle.className = "totaux-emetteur-warning-title";
+        warningTitle.textContent = "Champs à remplir";
+
+        const warningList = document.createElement("p");
+        warningList.className = "totaux-emetteur-warning-list";
+        warningList.textContent = Array.from(manques).join(" • ");
+
+        warning.append(warningTitle, warningList);
+        item.appendChild(warning);
+      }
       totauxEmetteursList.appendChild(item);
     }
   }
@@ -136,12 +195,6 @@
 
   function refreshGroupingUi() {
     renderTotauxBanner();
-    const totals = montantParEmetteurMap();
-    for (const row of document.querySelectorAll("tr.groupe-emetteur")) {
-      const emetteur = row.dataset.emetteur;
-      const montant = totals.get(emetteur) || "0,00";
-      row.querySelector("td").textContent = `${emetteur} — total net HT : ${montant}`;
-    }
     syncExportButton();
   }
 
@@ -218,19 +271,14 @@
     renderLignes(lotLignes);
   }
 
-  function appendGroupeEmetteurRow(tableBody, emetteur, montantHt) {
-    const tr = document.createElement("tr");
-    tr.className = "groupe-emetteur";
-    tr.dataset.emetteur = emetteur;
-    const td = document.createElement("td");
-    td.colSpan = TABLE_COLUMN_COUNT;
-    td.textContent = `${emetteur} — total net HT : ${montantHt}`;
-    tr.appendChild(td);
-    tableBody.appendChild(tr);
-  }
-
   function appendLigneRow(tableBody, ligne, index) {
     const tr = document.createElement("tr");
+    if (!champsRemplis(ligne)) {
+      tr.classList.add("ligne-incomplete");
+    }
+    if (ligne.statut === "A_VERIFIER") {
+      tr.classList.add("ligne-a-verifier");
+    }
     let validerBtn = null;
     for (const key of ["fichier", "emetteur", "date", "montant_ht", "statut"]) {
       const td = document.createElement("td");
@@ -245,7 +293,6 @@
         input.addEventListener("input", () => {
           corrigerLigneLocale(index, key, input.value || "");
           if (key === "emetteur") {
-            renderLignes(lotLignes);
             return;
           }
           if (key === "montant_ht") {
@@ -255,6 +302,11 @@
             validerBtn.disabled = !champsRemplis(lotLignes[index]);
           }
         });
+        if (key === "emetteur") {
+          input.addEventListener("blur", () => {
+            renderLignes(lotLignes);
+          });
+        }
         td.appendChild(input);
       } else {
         td.textContent = displayValue(ligne[key]);
@@ -317,13 +369,84 @@
     tableBody.appendChild(tr);
   }
 
-  function renderGroupedTable(tableBody, entries, totals) {
-    const groups = LotGrouping.grouperLignesParEmetteur(entries);
-    for (const [emetteur, groupEntries] of groups) {
-      appendGroupeEmetteurRow(tableBody, emetteur, totals.get(emetteur) || "0,00");
-      for (const { ligne, index } of groupEntries) {
-        appendLigneRow(tableBody, ligne, index);
+  function createResultsTable() {
+    const table = document.createElement("table");
+    table.className = "results-table";
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Fichier</th>
+          <th>Émetteur</th>
+          <th>Date</th>
+          <th>Montant HT</th>
+          <th>Statut</th>
+          <th>Type</th>
+          <th>Action</th>
+          <th>Aperçu</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    `;
+    return table;
+  }
+
+  function appendTypeBlock(groupBody, title, entries) {
+    if (entries.length === 0) {
+      return;
+    }
+    const block = document.createElement("section");
+    block.className = "issuer-type-block";
+
+    const heading = document.createElement("h4");
+    heading.className = "issuer-type-heading";
+    heading.textContent = `${title} (${entries.length})`;
+
+    const table = createResultsTable();
+    const tbody = table.querySelector("tbody");
+    for (const { ligne, index } of entries) {
+      appendLigneRow(tbody, ligne, index);
+    }
+
+    block.append(heading, table);
+    groupBody.appendChild(block);
+  }
+
+  function renderIssuerGroups() {
+    issuerGroups.replaceChildren();
+    const totals = montantParEmetteurMap();
+    const groupedEntries = LotGrouping.grouperLignesParEmetteur(
+      lotLignes.map((ligne, index) => ({ ligne, index })),
+    );
+
+    for (const [emetteur, entries] of groupedEntries) {
+      const group = document.createElement("section");
+      group.className = "issuer-group";
+      if (emetteur === LotGrouping.EMETTEUR_MANQUANT) {
+        group.classList.add("issuer-group-missing");
       }
+
+      const header = document.createElement("div");
+      header.className = "issuer-group-header";
+
+      const title = document.createElement("h3");
+      title.className = "issuer-group-title";
+      title.textContent = emetteur;
+
+      const total = document.createElement("p");
+      total.className = "issuer-group-total";
+      total.textContent = `Total net HT : ${totals.get(emetteur) || "0,00"} €`;
+
+      header.append(title, total);
+
+      const body = document.createElement("div");
+      body.className = "issuer-group-body";
+      const factures = entries.filter(({ ligne }) => ligne.type_document !== TYPE_AVOIR);
+      const avoirs = entries.filter(({ ligne }) => ligne.type_document === TYPE_AVOIR);
+      appendTypeBlock(body, "Factures", factures);
+      appendTypeBlock(body, "Avoirs", avoirs);
+
+      group.append(header, body);
+      issuerGroups.appendChild(group);
     }
   }
 
@@ -332,26 +455,14 @@
       ...ligne,
       type_document: ligne.type_document || TYPE_FACTURE,
     }));
-    facturesTableBody.replaceChildren();
-    avoirsTableBody.replaceChildren();
+    const factureCount = lotLignes.filter(
+      (ligne) => ligne.type_document !== TYPE_AVOIR,
+    ).length;
+    const avoirCount = lotLignes.length - factureCount;
 
-    const totals = montantParEmetteurMap();
-    const factureEntries = [];
-    const avoirEntries = [];
-    lotLignes.forEach((ligne, index) => {
-      const entry = { ligne, index };
-      if (ligne.type_document === TYPE_AVOIR) {
-        avoirEntries.push(entry);
-      } else {
-        factureEntries.push(entry);
-      }
-    });
-
-    renderGroupedTable(facturesTableBody, factureEntries, totals);
-    renderGroupedTable(avoirsTableBody, avoirEntries, totals);
-
-    facturesCount.textContent = String(factureEntries.length);
-    avoirsCount.textContent = String(avoirEntries.length);
+    renderIssuerGroups();
+    facturesCount.textContent = String(factureCount);
+    avoirsCount.textContent = String(avoirCount);
     refreshGroupingUi();
   }
 
