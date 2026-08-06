@@ -20,7 +20,7 @@ try:
 except ImportError:  # pragma: no cover - HEIC tests skip if missing
     pillow_heif = None
 
-from app.models import TYPE_AVOIR, TYPE_FACTURE, LigneFacture
+from app.models import TYPE_AVOIR, TYPE_FACTURE, LigneFacture, Template
 from app.runtime_paths import get_poppler_path
 
 STATUT_OK = "OK"
@@ -200,25 +200,25 @@ def _extract_document_text(document_path: Path) -> SourceText:
     )
 
 
-def _load_templates(templates_dir: Path) -> list[dict]:
-    templates: list[dict] = []
+def _load_templates(templates_dir: Path) -> list[Template]:
+    templates: list[Template] = []
     for path in sorted(templates_dir.glob("*.yml")) + sorted(
         templates_dir.glob("*.yaml")
     ):
         with path.open(encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
         if data:
-            templates.append(data)
+            templates.append(Template.from_mapping(data))
     return templates
 
 
-def _keywords_match(text: str, keywords: list[str]) -> bool:
+def _keywords_match(text: str, keywords: tuple[str, ...]) -> bool:
     lower = text.lower()
     return all(keyword.lower() in lower for keyword in keywords)
 
 
-def _matching_templates(text: str, templates: list[dict]) -> list[dict]:
-    return [t for t in templates if _keywords_match(text, t.get("keywords") or [])]
+def _matching_templates(text: str, templates: list[Template]) -> list[Template]:
+    return [t for t in templates if _keywords_match(text, t.keywords)]
 
 
 def _normalize_date(raw: str, date_formats: list[str]) -> str | None:
@@ -275,24 +275,47 @@ def _extract_field(text: str, pattern: str) -> str | None:
     return match.group(1) if match.lastindex else match.group(0)
 
 
-def _apply_template(text: str, template: dict) -> tuple[str | None, str | None, str | None]:
-    options = template.get("options") or {}
-    fields = template.get("fields") or {}
-    date_formats = options.get("date_formats") or ["%d/%m/%Y", "%d/%m/%y"]
-    decimal_separator = options.get("decimal_separator") or ","
-    amount_sign = options.get("amount_sign")
+def _apply_template(
+    text: str,
+    template: Template,
+    *,
+    fichier: str,
+    from_ocr: bool,
+    type_document: str,
+) -> LigneFacture:
+    raw_date = (
+        _extract_field(text, template.date_pattern) if template.date_pattern else None
+    )
+    raw_amount = (
+        _extract_field(text, template.amount_pattern)
+        if template.amount_pattern
+        else None
+    )
 
-    emetteur = template.get("issuer")
-    raw_date = _extract_field(text, fields["date"]) if "date" in fields else None
-    raw_amount = _extract_field(text, fields["amount"]) if "amount" in fields else None
-
-    date = _normalize_date(raw_date, date_formats) if raw_date else None
+    date = (
+        _normalize_date(raw_date, list(template.date_formats)) if raw_date else None
+    )
     montant = (
-        _normalize_amount(raw_amount, decimal_separator, amount_sign)
+        _normalize_amount(
+            raw_amount, template.decimal_separator, template.amount_sign
+        )
         if raw_amount
         else None
     )
-    return emetteur, date, montant
+    emetteur = template.issuer
+    statut = (
+        STATUT_OK
+        if emetteur and date and montant and not from_ocr
+        else STATUT_A_VERIFIER
+    )
+    return LigneFacture(
+        fichier=fichier,
+        emetteur=emetteur,
+        date=date,
+        montant_ht=montant,
+        statut=statut,
+        type_document=type_document,
+    )
 
 
 def _ascii_fold(value: str) -> str:
@@ -372,9 +395,21 @@ def _generic_amount(text: str) -> str | None:
     return _unique_or_none(candidates)
 
 
-def _apply_generic_fallback(text: str) -> tuple[str | None, str | None]:
+def _apply_generic_fallback(
+    text: str,
+    *,
+    fichier: str,
+    type_document: str,
+) -> LigneFacture:
     """Filet déterministe : date + montant HT, jamais d'Émetteur."""
-    return _generic_date(text), _generic_amount(text)
+    return LigneFacture(
+        fichier=fichier,
+        emetteur=None,
+        date=_generic_date(text),
+        montant_ht=_generic_amount(text),
+        statut=STATUT_A_VERIFIER,
+        type_document=type_document,
+    )
 
 
 # Marqueurs documentaires uniquement — pas le verbe « avoir » ni les CGV
@@ -415,29 +450,26 @@ def process_lot(
         path = Path(document_path)
         source = _extract_document_text(path)
         matches = _matching_templates(source.text, templates)
-
-        emetteur = date = montant = None
-        statut = STATUT_A_VERIFIER
-
-        if len(matches) == 1:
-            emetteur, date, montant = _apply_template(source.text, matches[0])
-            if emetteur and date and montant and not source.from_ocr:
-                statut = STATUT_OK
-        else:
-            date, montant = _apply_generic_fallback(source.text)
-
         type_document = _classify_document(source.text, path.name)
 
-        lignes.append(
-            LigneFacture(
-                fichier=path.name,
-                emetteur=emetteur,
-                date=date,
-                montant_ht=montant,
-                statut=statut,
-                type_document=type_document,
+        if len(matches) == 1:
+            lignes.append(
+                _apply_template(
+                    source.text,
+                    matches[0],
+                    fichier=path.name,
+                    from_ocr=source.from_ocr,
+                    type_document=type_document,
+                )
             )
-        )
+        else:
+            lignes.append(
+                _apply_generic_fallback(
+                    source.text,
+                    fichier=path.name,
+                    type_document=type_document,
+                )
+            )
 
     return lignes
 
