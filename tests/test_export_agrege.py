@@ -1,5 +1,6 @@
 import pytest
 
+from app.amounts import MontantHt
 from app.export_agrege import (
     agreger_par_emetteur,
     export_csv_agrege,
@@ -18,6 +19,9 @@ def _ligne(**kwargs) -> LigneFacture:
         "type_document": TYPE_FACTURE,
     }
     defaults.update(kwargs)
+    montant = defaults.get("montant_ht")
+    if isinstance(montant, str):
+        defaults["montant_ht"] = MontantHt.parse_fr(montant)
     return LigneFacture(**defaults)
 
 

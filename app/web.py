@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import shutil
 import tempfile
-from dataclasses import asdict
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, render_template, request
 
+from app.amounts import MontantHt
 from app.csv_export import export_csv, valider_export
 from app.lot import is_supported_document, process_lot, supported_document_formats_label
 from app.models import TYPES_DOCUMENT, LigneFacture
@@ -66,7 +66,7 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
             lignes = process_lot(document_paths, app.config["INVOICE_TEMPLATES_DIR"])
             return jsonify(
                 {
-                    "lignes": [asdict(ligne) for ligne in lignes],
+                    "lignes": [ligne.to_api_dict() for ligne in lignes],
                     "warnings": warnings,
                 }
             )
@@ -97,7 +97,7 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
                     fichier=str(raw["fichier"]),
                     emetteur=raw.get("emetteur"),
                     date=raw.get("date"),
-                    montant_ht=raw.get("montant_ht"),
+                    montant_ht=MontantHt.parse_fr(raw.get("montant_ht")),
                     statut=str(raw["statut"]),
                     type_document=type_document,
                 )

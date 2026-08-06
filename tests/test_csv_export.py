@@ -1,3 +1,4 @@
+from app.amounts import MontantHt
 from app.csv_export import export_csv
 from app.models import TYPE_AVOIR, TYPE_FACTURE, LigneFacture
 
@@ -9,7 +10,7 @@ def test_export_csv_format_excel_fr():
                 fichier="Masse 22 Juillet 26.pdf",
                 emetteur="Masse",
                 date="22/07/2026",
-                montant_ht="793,31",
+                montant_ht=MontantHt.parse_fr("793,31"),
                 statut="OK",
                 type_document=TYPE_FACTURE,
             ),
@@ -17,7 +18,7 @@ def test_export_csv_format_excel_fr():
                 fichier="Altagel 10 Juillet 26.pdf",
                 emetteur="Altagel",
                 date="10/07/2026",
-                montant_ht="382,26",
+                montant_ht=MontantHt.parse_fr("382,26"),
                 statut="OK",
                 type_document=TYPE_FACTURE,
             ),
@@ -39,7 +40,7 @@ def test_export_csv_total_net_facture_et_avoir():
                 fichier="Hennequin AVOIR 10 Juillet 26.pdf",
                 emetteur="Hennequin",
                 date="10/07/2026",
-                montant_ht="-1424,78",
+                montant_ht=MontantHt.parse_fr("-1424,78"),
                 statut="OK",
                 type_document=TYPE_AVOIR,
             ),
@@ -47,7 +48,7 @@ def test_export_csv_total_net_facture_et_avoir():
                 fichier="Masse 22 Juillet 26.pdf",
                 emetteur="Masse",
                 date="22/07/2026",
-                montant_ht="793,31",
+                montant_ht=MontantHt.parse_fr("793,31"),
                 statut="OK",
                 type_document=TYPE_FACTURE,
             ),

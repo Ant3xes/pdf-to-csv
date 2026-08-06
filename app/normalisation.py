@@ -3,7 +3,9 @@ from __future__ import annotations
 import re
 import unicodedata
 from datetime import datetime
+from decimal import Decimal
 
+from app.amounts import MontantHt
 from app.models import STATUT_A_VERIFIER, LigneFacture
 
 # Longest-first prefixes for abbreviated / punctuated month names (Youtrust, etc.).
@@ -115,19 +117,8 @@ def normalize_date(raw: str, date_formats: list[str]) -> str | None:
 
 def normalize_amount(
     raw: str, decimal_separator: str, amount_sign: str | None = None
-) -> str | None:
-    cleaned = raw.strip().replace(" ", "")
-    if decimal_separator == ",":
-        cleaned = cleaned.replace(".", "").replace(",", ".")
-    else:
-        cleaned = cleaned.replace(",", "")
-    try:
-        value = float(cleaned)
-    except ValueError:
-        return None
-    if amount_sign == "negative" and value > 0:
-        value = -value
-    return f"{value:.2f}".replace(".", ",")
+) -> MontantHt | None:
+    return MontantHt.from_raw(raw, decimal_separator, amount_sign)
 
 
 def ascii_fold(value: str) -> str:
@@ -190,8 +181,8 @@ def generic_date(text: str) -> str | None:
     return _unique_or_none(_collect_dated_matches(text, _GENERIC_DATE_WEAK))
 
 
-def generic_amount(text: str) -> str | None:
-    candidates: list[str] = []
+def generic_amount(text: str) -> MontantHt | None:
+    candidates: list[MontantHt] = []
     for pattern in _GENERIC_AMOUNT_LABELS:
         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
             label_prefix = text[max(0, match.start() - 30) : match.start()]
@@ -204,7 +195,20 @@ def generic_amount(text: str) -> str | None:
             normalized = normalize_amount(raw, sep)
             if normalized:
                 candidates.append(normalized)
-    return _unique_or_none(candidates)
+    return _unique_montant_or_none(candidates)
+
+
+def _unique_montant_or_none(values: list[MontantHt]) -> MontantHt | None:
+    unique: list[MontantHt] = []
+    seen: set[Decimal] = set()
+    for value in values:
+        if value.value in seen:
+            continue
+        seen.add(value.value)
+        unique.append(value)
+    if len(unique) == 1:
+        return unique[0]
+    return None
 
 
 def apply_generic_fallback(

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
+from decimal import Decimal
 from io import StringIO
 
-from app.amounts import format_montant_ht_fr, parse_montant_ht_fr
+from app.amounts import format_montant_ht_fr
 from app.models import LigneFacture
 
 _COLUMNS = ("emetteur", "montant_ht", "nb_documents")
@@ -29,8 +30,7 @@ def valider_export(lignes: list[LigneFacture]) -> str | None:
         if not emetteur:
             return "Export impossible : une facture n'a pas d'émetteur."
         date = (ligne.date or "").strip()
-        montant_ht = (ligne.montant_ht or "").strip()
-        if not date or not montant_ht:
+        if not date or ligne.montant_ht is None:
             return (
                 "Export impossible : une facture OK n'a pas de date "
                 "ou de montant HT."
@@ -39,10 +39,10 @@ def valider_export(lignes: list[LigneFacture]) -> str | None:
 
 
 def agreger_par_emetteur(lignes: list[LigneFacture]) -> list[TotalEmetteur]:
-    totals: dict[str, tuple[float, int]] = {}
+    totals: dict[str, tuple[Decimal, int]] = {}
     for ligne in lignes:
         emetteur = ligne.emetteur.strip() if ligne.emetteur else ""
-        amount = parse_montant_ht_fr(ligne.montant_ht)
+        amount = ligne.montant_ht.value if ligne.montant_ht is not None else Decimal("0")
         if emetteur in totals:
             prev_sum, prev_count = totals[emetteur]
             totals[emetteur] = (prev_sum + amount, prev_count + 1)

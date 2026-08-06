@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from app.amounts import MontantHt
+
 TYPE_FACTURE = "FACTURE"
 TYPE_AVOIR = "AVOIR"
 TYPES_DOCUMENT = frozenset({TYPE_FACTURE, TYPE_AVOIR})
@@ -18,9 +20,19 @@ class LigneFacture:
     fichier: str
     emetteur: str | None
     date: str | None
-    montant_ht: str | None
+    montant_ht: MontantHt | None
     statut: str
     type_document: str
+
+    def to_api_dict(self) -> dict[str, Any]:
+        return {
+            "fichier": self.fichier,
+            "emetteur": self.emetteur,
+            "date": self.date,
+            "montant_ht": self.montant_ht.format_fr() if self.montant_ht else None,
+            "statut": self.statut,
+            "type_document": self.type_document,
+        }
 
 
 @dataclass(frozen=True)
