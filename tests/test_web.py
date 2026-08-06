@@ -475,8 +475,19 @@ def test_page_accueil_contient_colonne_ouvrir_fichier(client):
     assert "Aperçu" in js
 
 
+def test_page_accueil_contient_panneau_apercu(client):
+    """Panneau d’aperçu in-app présent dans le HTML (#50)."""
+    response = client.get("/")
+
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert 'id="preview-pane"' in html
+    assert 'id="preview-content"' in html
+    assert 'id="preview-placeholder"' in html
+
+
 def test_static_js_ouvre_fichier_via_object_url_sans_endpoint(client):
-    """Fichier du Lot ouvert via object URL navigateur, sans endpoint serveur (#26)."""
+    """Fichier du Lot ouvert via object URL in-app, sans endpoint serveur (#26, #50)."""
     response = client.get("/static/app.js")
 
     assert response.status_code == 200
@@ -487,7 +498,9 @@ def test_static_js_ouvre_fichier_via_object_url_sans_endpoint(client):
     assert "fileUrls" in js
     assert "depositedFiles" in js
     assert "heic2any" in js
-    assert '"_blank"' in js
+    assert "preview-content" in js or "previewContent" in js or "showPreview" in js
+    assert "window.open" not in js
+    assert '"_blank"' not in js
     assert "disabled" in js
     assert "Fichier indisponible" in js
     assert "/api/pdf" not in js

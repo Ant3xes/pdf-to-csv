@@ -9,6 +9,8 @@ from app.web import create_app
 
 APP_TITLE = "Convertisseur Factures"
 DEFAULT_HOST = "127.0.0.1"
+WINDOW_WIDTH = 1280
+WINDOW_HEIGHT = 800
 
 
 def start_server(
@@ -33,7 +35,12 @@ def run_desktop_app() -> None:
 
     server, url, _thread = start_server()
     try:
-        webview.create_window(APP_TITLE, url)
+        webview.create_window(
+            APP_TITLE,
+            url,
+            width=WINDOW_WIDTH,
+            height=WINDOW_HEIGHT,
+        )
         webview.start()
     finally:
         stop_server(server)

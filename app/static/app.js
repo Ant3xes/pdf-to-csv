@@ -10,6 +10,9 @@
   const avoirsCount = document.getElementById("avoirs-count");
   const issuerGroups = document.getElementById("issuer-groups");
   const exportButton = document.getElementById("export-csv");
+  const previewContent = document.getElementById("preview-content");
+  const previewPlaceholder = document.getElementById("preview-placeholder");
+  const previewFilename = document.getElementById("preview-filename");
 
   const TYPE_FACTURE = "FACTURE";
   const TYPE_AVOIR = "AVOIR";
@@ -26,6 +29,8 @@
   const fileUrls = new Map();
   /** filename → File déposé (conservé pour conversion HEIC à l'ouverture). */
   const depositedFiles = new Map();
+  /** Fichier actuellement affiché dans le panneau d'aperçu (null si vide). */
+  let previewedFilename = null;
 
   let heic2anyLoadPromise = null;
 
@@ -198,7 +203,39 @@
     syncExportButton();
   }
 
+  function clearPreview() {
+    previewedFilename = null;
+    previewContent.replaceChildren();
+    previewPlaceholder.hidden = false;
+    previewFilename.hidden = true;
+    previewFilename.textContent = "";
+  }
+
+  function isPdfFilename(filename) {
+    return String(filename).toLowerCase().endsWith(".pdf");
+  }
+
+  function renderPreviewMedia(filename, url) {
+    previewContent.replaceChildren();
+    if (isPdfFilename(filename)) {
+      const frame = document.createElement("iframe");
+      frame.src = url;
+      frame.title = `Aperçu de ${filename}`;
+      previewContent.appendChild(frame);
+    } else {
+      const image = document.createElement("img");
+      image.src = url;
+      image.alt = `Aperçu de ${filename}`;
+      previewContent.appendChild(image);
+    }
+    previewPlaceholder.hidden = true;
+    previewFilename.hidden = false;
+    previewFilename.textContent = filename;
+    previewedFilename = filename;
+  }
+
   function clearFileUrls() {
+    clearPreview();
     for (const url of fileUrls.values()) {
       URL.revokeObjectURL(url);
     }
@@ -216,21 +253,30 @@
     }
   }
 
-  async function openDepositedFile(filename) {
+  async function resolvePreviewUrl(filename) {
     let url = fileUrls.get(filename);
-    if (!url) {
-      const file = depositedFiles.get(filename);
-      if (!file || !isHeicFile(file)) {
-        return false;
-      }
-      try {
-        url = await createHeicPreviewUrl(file);
-        fileUrls.set(filename, url);
-      } catch {
-        return false;
-      }
+    if (url) {
+      return url;
     }
-    window.open(url, "_blank", "noopener,noreferrer");
+    const file = depositedFiles.get(filename);
+    if (!file || !isHeicFile(file)) {
+      return null;
+    }
+    try {
+      url = await createHeicPreviewUrl(file);
+      fileUrls.set(filename, url);
+      return url;
+    } catch {
+      return null;
+    }
+  }
+
+  async function showPreview(filename) {
+    const url = await resolvePreviewUrl(filename);
+    if (!url) {
+      return false;
+    }
+    renderPreviewMedia(filename, url);
     return true;
   }
 
@@ -278,6 +324,9 @@
     }
     if (ligne.statut === "A_VERIFIER") {
       tr.classList.add("ligne-a-verifier");
+    }
+    if (previewedFilename && ligne.fichier === previewedFilename) {
+      tr.classList.add("ligne-apercu");
     }
     let validerBtn = null;
     for (const key of ["fichier", "emetteur", "date", "montant_ht", "statut"]) {
@@ -355,10 +404,13 @@
     const hasFile = depositedFiles.has(ligne.fichier);
     if (hasFile) {
       openBtn.addEventListener("click", async () => {
-        const opened = await openDepositedFile(ligne.fichier);
+        const opened = await showPreview(ligne.fichier);
         if (!opened) {
-          showError("Impossible d'ouvrir ce fichier.");
+          showError("Impossible d'afficher l'aperçu de ce fichier.");
+          return;
         }
+        showError("");
+        renderLignes(lotLignes);
       });
     } else {
       openBtn.disabled = true;
