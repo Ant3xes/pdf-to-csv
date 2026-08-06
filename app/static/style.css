@@ -21,7 +21,7 @@ body {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  grid-template-columns: minmax(0, 1fr) 6px var(--preview-width, clamp(280px, 42vw, 55vw));
   gap: 0;
   min-height: 100vh;
   align-items: stretch;
@@ -30,8 +30,104 @@ body {
 .app-main {
   max-width: none;
   margin: 0;
-  padding: 2rem 1.25rem 3rem;
+  padding: 1.25rem 1.25rem 1.5rem;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 100vh;
+}
+
+.pane-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.pane-toolbar h1,
+.pane-toolbar h2 {
+  margin: 0;
+}
+
+.pane-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.pane-zoom-controls button {
+  font: inherit;
+  font-size: 0.85rem;
+  min-width: 2rem;
+  padding: 0.25rem 0.45rem;
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pane-zoom-controls button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.pane-zoom-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pane-zoom-controls button[id$="-zoom-reset"] {
+  min-width: 3.25rem;
+}
+
+.pane-zoom-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.pane-zoom-stage {
+  transform-origin: top left;
+  width: 100%;
+}
+
+.split-handle {
+  position: relative;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.split-handle::after {
+  content: "";
+  position: absolute;
+  inset: 0 -2px;
+  background: var(--border);
+  transition: background 0.12s ease;
+}
+
+.split-handle:hover::after,
+.split-handle:focus-visible::after,
+body.is-resizing-split .split-handle::after {
+  background: var(--accent);
+}
+
+.split-handle:focus-visible {
+  outline: none;
+}
+
+body.is-resizing-split {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.is-resizing-split iframe,
+body.is-resizing-split img {
+  pointer-events: none;
 }
 
 .preview-pane {
@@ -40,7 +136,6 @@ body {
   align-self: start;
   height: 100vh;
   padding: 1.25rem 1rem 1.5rem;
-  border-left: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.72);
   display: flex;
   flex-direction: column;
@@ -56,7 +151,7 @@ body {
 }
 
 .preview-filename {
-  margin: 0;
+  margin: 0 0 0.75rem;
   color: var(--muted);
   font-size: 0.85rem;
   word-break: break-all;
@@ -69,26 +164,29 @@ body {
 }
 
 .preview-content {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  margin-top: 0.75rem;
 }
 
 .preview-content iframe,
-.preview-content img {
+.preview-content img,
+.preview-content embed {
+  display: block;
   width: 100%;
-  height: 100%;
-  min-height: 24rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
 }
 
+.preview-content iframe,
+.preview-content embed {
+  height: min(70vh, 40rem);
+  min-height: 24rem;
+}
+
 .preview-content img {
-  object-fit: contain;
   height: auto;
-  max-height: calc(100vh - 7rem);
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .results-table tr.ligne-apercu {
@@ -102,10 +200,13 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .split-handle {
+    display: none;
+  }
+
   .preview-pane {
     position: static;
     height: auto;
-    border-left: none;
     border-top: 1px solid var(--border);
   }
 }
@@ -114,7 +215,7 @@ h1 {
   font-family: "Fraunces", Georgia, serif;
   font-weight: 600;
   font-size: clamp(1.6rem, 3vw, 2.1rem);
-  margin: 0 0 1.5rem;
+  margin: 0;
 }
 
 #drop-zone {

@@ -10,9 +10,21 @@
   const avoirsCount = document.getElementById("avoirs-count");
   const issuerGroups = document.getElementById("issuer-groups");
   const exportButton = document.getElementById("export-csv");
+  const appShell = document.querySelector(".app-shell");
+  const splitHandle = document.getElementById("split-handle");
+  const mainPane = document.getElementById("main-pane");
+  const previewPane = document.getElementById("preview-pane");
+  const mainZoomStage = document.getElementById("main-zoom-stage");
+  const previewZoomStage = document.getElementById("preview-zoom-stage");
   const previewContent = document.getElementById("preview-content");
   const previewPlaceholder = document.getElementById("preview-placeholder");
   const previewFilename = document.getElementById("preview-filename");
+  const mainZoomOut = document.getElementById("main-zoom-out");
+  const mainZoomIn = document.getElementById("main-zoom-in");
+  const mainZoomReset = document.getElementById("main-zoom-reset");
+  const previewZoomOut = document.getElementById("preview-zoom-out");
+  const previewZoomIn = document.getElementById("preview-zoom-in");
+  const previewZoomReset = document.getElementById("preview-zoom-reset");
 
   const TYPE_FACTURE = "FACTURE";
   const TYPE_AVOIR = "AVOIR";
@@ -23,6 +35,9 @@
     montant_ht: "Montant HT",
   };
   const TABLE_COLUMN_COUNT = 8;
+  const PANE_ZOOM_MIN = 0.5;
+  const PANE_ZOOM_MAX = 3;
+  const PANE_ZOOM_STEP = 0.1;
   /** État éphémère du Lot en cours (Correction manuelle locale, hors Template). */
   let lotLignes = [];
   /** filename → object URL pour ouvrir le fichier (éphémère, côté navigateur uniquement). */
@@ -31,6 +46,10 @@
   const depositedFiles = new Map();
   /** Fichier actuellement affiché dans le panneau d'aperçu (null si vide). */
   let previewedFilename = null;
+  /** Dernier panneau survolé / ciblé pour raccourcis clavier et molette. */
+  let activeZoomPane = "main";
+  let mainZoom = 1;
+  let previewZoom = 1;
 
   let heic2anyLoadPromise = null;
 
@@ -215,13 +234,75 @@
     return String(filename).toLowerCase().endsWith(".pdf");
   }
 
+  function clampPaneZoom(value) {
+    const stepped = Math.round(value / PANE_ZOOM_STEP) * PANE_ZOOM_STEP;
+    return Math.min(PANE_ZOOM_MAX, Math.max(PANE_ZOOM_MIN, Number(stepped.toFixed(2))));
+  }
+
+  function applyStageZoom(stage, zoom) {
+    if (!stage) {
+      return;
+    }
+    stage.style.transformOrigin = "0 0";
+    if (zoom === 1) {
+      stage.style.transform = "";
+      stage.style.width = "";
+    } else {
+      stage.style.transform = `scale(${zoom})`;
+      stage.style.width = `${100 / zoom}%`;
+    }
+  }
+
+  function syncZoomControls(zoom, outBtn, inBtn, resetBtn) {
+    if (!resetBtn || !outBtn || !inBtn) {
+      return;
+    }
+    resetBtn.textContent = `${Math.round(zoom * 100)}%`;
+    outBtn.disabled = zoom <= PANE_ZOOM_MIN;
+    inBtn.disabled = zoom >= PANE_ZOOM_MAX;
+  }
+
+  function applyMainZoom() {
+    applyStageZoom(mainZoomStage, mainZoom);
+    syncZoomControls(mainZoom, mainZoomOut, mainZoomIn, mainZoomReset);
+  }
+
+  function applyPreviewZoom() {
+    applyStageZoom(previewZoomStage, previewZoom);
+    syncZoomControls(previewZoom, previewZoomOut, previewZoomIn, previewZoomReset);
+  }
+
+  function setMainZoom(value) {
+    mainZoom = clampPaneZoom(value);
+    applyMainZoom();
+  }
+
+  function setPreviewZoom(value) {
+    previewZoom = clampPaneZoom(value);
+    applyPreviewZoom();
+  }
+
+  function setActiveZoomPane(pane) {
+    activeZoomPane = pane === "preview" ? "preview" : "main";
+  }
+
+  function adjustActiveZoom(delta) {
+    if (activeZoomPane === "preview") {
+      setPreviewZoom(previewZoom + delta);
+    } else {
+      setMainZoom(mainZoom + delta);
+    }
+  }
+
   function renderPreviewMedia(filename, url) {
     previewContent.replaceChildren();
     if (isPdfFilename(filename)) {
-      const frame = document.createElement("iframe");
-      frame.src = url;
-      frame.title = `Aperçu de ${filename}`;
-      previewContent.appendChild(frame);
+      // <embed> se comporte mieux que <iframe> avec transform:scale sous WKWebView.
+      const embed = document.createElement("embed");
+      embed.src = url;
+      embed.type = "application/pdf";
+      embed.title = `Aperçu de ${filename}`;
+      previewContent.appendChild(embed);
     } else {
       const image = document.createElement("img");
       image.src = url;
@@ -232,6 +313,7 @@
     previewFilename.hidden = false;
     previewFilename.textContent = filename;
     previewedFilename = filename;
+    applyPreviewZoom();
   }
 
   function clearFileUrls() {
@@ -611,5 +693,161 @@
   exportButton.addEventListener("click", () => {
     exportLotCsv();
   });
+
+  if (mainZoomOut && mainZoomIn && mainZoomReset) {
+    mainZoomOut.addEventListener("click", () => {
+      setActiveZoomPane("main");
+      setMainZoom(mainZoom - PANE_ZOOM_STEP);
+    });
+    mainZoomIn.addEventListener("click", () => {
+      setActiveZoomPane("main");
+      setMainZoom(mainZoom + PANE_ZOOM_STEP);
+    });
+    mainZoomReset.addEventListener("click", () => {
+      setActiveZoomPane("main");
+      setMainZoom(1);
+    });
+  }
+
+  if (previewZoomOut && previewZoomIn && previewZoomReset) {
+    previewZoomOut.addEventListener("click", () => {
+      setActiveZoomPane("preview");
+      setPreviewZoom(previewZoom - PANE_ZOOM_STEP);
+    });
+    previewZoomIn.addEventListener("click", () => {
+      setActiveZoomPane("preview");
+      setPreviewZoom(previewZoom + PANE_ZOOM_STEP);
+    });
+    previewZoomReset.addEventListener("click", () => {
+      setActiveZoomPane("preview");
+      setPreviewZoom(1);
+    });
+  }
+
+  if (mainPane) {
+    mainPane.addEventListener("pointerenter", () => setActiveZoomPane("main"));
+  }
+  if (previewPane) {
+    previewPane.addEventListener("pointerenter", () => setActiveZoomPane("preview"));
+  }
+
+  window.addEventListener("keydown", (event) => {
+    if (!(event.metaKey || event.ctrlKey) || event.altKey) {
+      return;
+    }
+    if (event.key === "+" || event.key === "=") {
+      adjustActiveZoom(PANE_ZOOM_STEP);
+      event.preventDefault();
+    } else if (event.key === "-") {
+      adjustActiveZoom(-PANE_ZOOM_STEP);
+      event.preventDefault();
+    } else if (event.key === "0") {
+      if (activeZoomPane === "preview") {
+        setPreviewZoom(1);
+      } else {
+        setMainZoom(1);
+      }
+      event.preventDefault();
+    }
+  });
+
+  window.addEventListener(
+    "wheel",
+    (event) => {
+      if (!(event.metaKey || event.ctrlKey)) {
+        return;
+      }
+      if (previewPane && previewPane.contains(event.target)) {
+        setActiveZoomPane("preview");
+      } else if (mainPane && mainPane.contains(event.target)) {
+        setActiveZoomPane("main");
+      }
+      event.preventDefault();
+      const direction = event.deltaY < 0 ? PANE_ZOOM_STEP : -PANE_ZOOM_STEP;
+      adjustActiveZoom(direction);
+    },
+    { passive: false },
+  );
+
+  applyMainZoom();
+  applyPreviewZoom();
+
+  function splitLayoutActive() {
+    return window.matchMedia("(min-width: 961px)").matches;
+  }
+
+  function clampPreviewWidth(widthPx, shellWidth) {
+    const minPreview = 240;
+    const minMain = 320;
+    const maxPreview = Math.max(minPreview, shellWidth - minMain);
+    return Math.min(Math.max(widthPx, minPreview), maxPreview);
+  }
+
+  function setPreviewWidth(widthPx) {
+    if (!appShell) {
+      return;
+    }
+    const shellWidth = appShell.getBoundingClientRect().width;
+    const clamped = clampPreviewWidth(widthPx, shellWidth);
+    appShell.style.setProperty("--preview-width", `${Math.round(clamped)}px`);
+  }
+
+  function initSplitResize() {
+    if (!appShell || !splitHandle) {
+      return;
+    }
+
+    let dragging = false;
+
+    splitHandle.addEventListener("pointerdown", (event) => {
+      if (!splitLayoutActive() || event.button !== 0) {
+        return;
+      }
+      dragging = true;
+      splitHandle.setPointerCapture(event.pointerId);
+      document.body.classList.add("is-resizing-split");
+      event.preventDefault();
+    });
+
+    splitHandle.addEventListener("pointermove", (event) => {
+      if (!dragging) {
+        return;
+      }
+      const rect = appShell.getBoundingClientRect();
+      setPreviewWidth(rect.right - event.clientX);
+    });
+
+    function endDrag(event) {
+      if (!dragging) {
+        return;
+      }
+      dragging = false;
+      document.body.classList.remove("is-resizing-split");
+      if (splitHandle.hasPointerCapture(event.pointerId)) {
+        splitHandle.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    splitHandle.addEventListener("pointerup", endDrag);
+    splitHandle.addEventListener("pointercancel", endDrag);
+
+    splitHandle.addEventListener("keydown", (event) => {
+      if (!splitLayoutActive()) {
+        return;
+      }
+      const step = event.shiftKey ? 40 : 16;
+      const previewPane = document.getElementById("preview-pane");
+      const current = previewPane.getBoundingClientRect().width;
+      if (event.key === "ArrowLeft") {
+        setPreviewWidth(current + step);
+        event.preventDefault();
+      } else if (event.key === "ArrowRight") {
+        setPreviewWidth(current - step);
+        event.preventDefault();
+      }
+    });
+  }
+
+  initSplitResize();
   syncExportButton();
 })();

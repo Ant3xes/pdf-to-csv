@@ -40,6 +40,7 @@ def run_desktop_app() -> None:
             url,
             width=WINDOW_WIDTH,
             height=WINDOW_HEIGHT,
+            zoomable=True,
         )
         webview.start()
     finally:

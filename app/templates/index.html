@@ -8,48 +8,80 @@
 </head>
 <body>
   <div class="app-shell">
-    <main class="app-main">
-      <h1>Convertisseur de factures</h1>
-
-      <section id="drop-zone" aria-label="Zone de dépôt des factures">
-        <p>Glissez-déposez vos factures (PDF, JPG, PNG, HEIC) ici, ou</p>
-        <label>
-          choisir des fichiers
-          <input id="file-input" type="file" accept=".pdf,.PDF,.jpg,.jpeg,.png,.heic,.JPG,.JPEG,.PNG,.HEIC,application/pdf,image/jpeg,image/png,image/heic" multiple hidden>
-        </label>
-      </section>
-
-      <p id="processing-indicator" hidden aria-live="polite">Traitement en cours…</p>
-      <p id="error-message" hidden role="alert"></p>
-
-      <p id="export-block-message" class="export-block-message" hidden role="status"></p>
-
-      <p class="export-actions">
-        <button type="button" id="export-csv" disabled>Exporter CSV</button>
-      </p>
-
-      <section id="documents-section" class="results-section" aria-labelledby="documents-heading">
-        <h2 id="documents-heading">
-          Documents
-          (<span id="factures-count">0</span> factures, <span id="avoirs-count">0</span> avoirs)
-        </h2>
-        <div id="issuer-groups" class="issuer-groups"></div>
-      </section>
-
-      <section id="totaux-emetteurs" class="totaux-emetteurs" hidden aria-labelledby="totaux-emetteurs-heading">
-        <div class="totaux-emetteurs-header">
-          <h2 id="totaux-emetteurs-heading">Synthèse par émetteur</h2>
-          <p class="totaux-emetteurs-subtitle">Totaux nets HT du lot en cours</p>
+    <main class="app-main" id="main-pane">
+      <div class="pane-toolbar">
+        <h1>Convertisseur de factures</h1>
+        <div id="main-zoom-controls" class="pane-zoom-controls" role="group" aria-label="Zoom du tableau">
+          <button type="button" id="main-zoom-out" aria-label="Zoom arrière du tableau">−</button>
+          <button type="button" id="main-zoom-reset" aria-label="Réinitialiser le zoom du tableau">100%</button>
+          <button type="button" id="main-zoom-in" aria-label="Zoom avant du tableau">+</button>
         </div>
-        <ul id="totaux-emetteurs-list" class="totaux-emetteurs-list"></ul>
-      </section>
+      </div>
+
+      <div class="pane-zoom-viewport" id="main-zoom-viewport">
+        <div class="pane-zoom-stage" id="main-zoom-stage">
+          <section id="drop-zone" aria-label="Zone de dépôt des factures">
+            <p>Glissez-déposez vos factures (PDF, JPG, PNG, HEIC) ici, ou</p>
+            <label>
+              choisir des fichiers
+              <input id="file-input" type="file" accept=".pdf,.PDF,.jpg,.jpeg,.png,.heic,.JPG,.JPEG,.PNG,.HEIC,application/pdf,image/jpeg,image/png,image/heic" multiple hidden>
+            </label>
+          </section>
+
+          <p id="processing-indicator" hidden aria-live="polite">Traitement en cours…</p>
+          <p id="error-message" hidden role="alert"></p>
+
+          <p id="export-block-message" class="export-block-message" hidden role="status"></p>
+
+          <p class="export-actions">
+            <button type="button" id="export-csv" disabled>Exporter CSV</button>
+          </p>
+
+          <section id="documents-section" class="results-section" aria-labelledby="documents-heading">
+            <h2 id="documents-heading">
+              Documents
+              (<span id="factures-count">0</span> factures, <span id="avoirs-count">0</span> avoirs)
+            </h2>
+            <div id="issuer-groups" class="issuer-groups"></div>
+          </section>
+
+          <section id="totaux-emetteurs" class="totaux-emetteurs" hidden aria-labelledby="totaux-emetteurs-heading">
+            <div class="totaux-emetteurs-header">
+              <h2 id="totaux-emetteurs-heading">Synthèse par émetteur</h2>
+              <p class="totaux-emetteurs-subtitle">Totaux nets HT du lot en cours</p>
+            </div>
+            <ul id="totaux-emetteurs-list" class="totaux-emetteurs-list"></ul>
+          </section>
+        </div>
+      </div>
     </main>
 
+    <div
+      id="split-handle"
+      class="split-handle"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Redimensionner le panneau d'aperçu"
+      tabindex="0"
+    ></div>
+
     <aside id="preview-pane" class="preview-pane" aria-labelledby="preview-heading">
-      <h2 id="preview-heading">Aperçu</h2>
-      <p id="preview-filename" class="preview-filename" hidden></p>
-      <p id="preview-placeholder">Cliquez sur « Ouvrir le fichier » pour afficher le document.</p>
-      <div id="preview-content" class="preview-content"></div>
+      <div class="pane-toolbar">
+        <h2 id="preview-heading">Aperçu</h2>
+        <div id="preview-zoom-controls" class="pane-zoom-controls" role="group" aria-label="Zoom de l'aperçu">
+          <button type="button" id="preview-zoom-out" aria-label="Zoom arrière de l'aperçu">−</button>
+          <button type="button" id="preview-zoom-reset" aria-label="Réinitialiser le zoom de l'aperçu">100%</button>
+          <button type="button" id="preview-zoom-in" aria-label="Zoom avant de l'aperçu">+</button>
+        </div>
+      </div>
+
+      <div class="pane-zoom-viewport" id="preview-zoom-viewport">
+        <div class="pane-zoom-stage" id="preview-zoom-stage">
+          <p id="preview-filename" class="preview-filename" hidden></p>
+          <p id="preview-placeholder">Cliquez sur « Ouvrir le fichier » pour afficher le document.</p>
+          <div id="preview-content" class="preview-content"></div>
+        </div>
+      </div>
     </aside>
   </div>
   <script src="{{ url_for('static', filename='lot_grouping.js') }}"></script>

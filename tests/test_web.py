@@ -484,6 +484,17 @@ def test_page_accueil_contient_panneau_apercu(client):
     assert 'id="preview-pane"' in html
     assert 'id="preview-content"' in html
     assert 'id="preview-placeholder"' in html
+    assert 'id="split-handle"' in html
+    assert 'role="separator"' in html
+    assert 'id="main-zoom-controls"' in html
+    assert 'id="preview-zoom-controls"' in html
+    assert 'id="main-zoom-in"' in html
+    assert 'id="preview-zoom-in"' in html
+    assert 'id="main-zoom-reset"' in html
+    assert 'id="preview-zoom-reset"' in html
+    assert 'id="preview-zoom-stage"' in html
+    assert "pane-zoom-label" not in html
+    assert "pane-zoom-groups" not in html
 
 
 def test_static_js_ouvre_fichier_via_object_url_sans_endpoint(client):
@@ -499,6 +510,10 @@ def test_static_js_ouvre_fichier_via_object_url_sans_endpoint(client):
     assert "depositedFiles" in js
     assert "heic2any" in js
     assert "preview-content" in js or "previewContent" in js or "showPreview" in js
+    assert "initSplitResize" in js or "setPreviewWidth" in js
+    assert "setMainZoom" in js
+    assert "setPreviewZoom" in js
+    assert "0.1" in js
     assert "window.open" not in js
     assert '"_blank"' not in js
     assert "disabled" in js
