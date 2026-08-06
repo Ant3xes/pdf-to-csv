@@ -31,7 +31,7 @@ if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
     "$APP_BUNDLE"
   echo "Application signée avec $APPLE_SIGNING_IDENTITY"
 else
-  echo "APPLE_SIGNING_IDENTITY non défini — signature ignorée." >&2
+  echo "Signature ignorée (app non signée — l'utilisateur ouvre via clic droit → Ouvrir)." >&2
 fi
 
 if [[ -n "${APPLE_NOTARIZE_KEYCHAIN_PROFILE:-}" ]]; then
@@ -43,7 +43,7 @@ if [[ -n "${APPLE_NOTARIZE_KEYCHAIN_PROFILE:-}" ]]; then
   rm -f "$DIST/notarize.zip"
   echo "Application notarisée."
 else
-  echo "APPLE_NOTARIZE_KEYCHAIN_PROFILE non défini — notarisation ignorée." >&2
+  echo "Notarisation ignorée (optionnelle)." >&2
 fi
 
 rm -f "$DMG_PATH"

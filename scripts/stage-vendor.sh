@@ -28,35 +28,52 @@ copy_binary pdftoppm
 
 cp "$BREW_PREFIX/share/tessdata/fra.traineddata" "$TESSDATA/fra.traineddata"
 
-declare -A SEEN_LIBS=()
-
-patch_binary() {
+# Recursively copy Homebrew dylibs referenced by a binary (bash 3.2 compatible).
+copy_linked_libs() {
   local binary="$1"
-  local lib dest base
+  local lib base dest
 
-  while read -r lib; do
+  otool -L "$binary" | tail -n +2 | awk '{print $1}' | while read -r lib; do
     case "$lib" in
       "$BREW_PREFIX"/*)
         base="$(basename "$lib")"
         dest="$LIB/$base"
-        if [[ -z "${SEEN_LIBS[$dest]:-}" ]]; then
+        if [[ ! -f "$dest" ]]; then
           cp "$lib" "$dest"
-          SEEN_LIBS[$dest]=1
-          patch_binary "$dest"
+          copy_linked_libs "$dest"
         fi
-        install_name_tool -change "$lib" "@executable_path/../lib/$base" "$binary"
+        install_name_tool -change "$lib" "@executable_path/../lib/$base" "$binary" 2>/dev/null || true
         ;;
     esac
-  done < <(otool -L "$binary" | tail -n +2 | awk '{print $1}')
+  done
 }
 
 for binary in "$BIN"/*; do
-  patch_binary "$binary"
+  copy_linked_libs "$binary"
+done
+
+# Re-run install_name_tool on binaries after all libs are present
+# (pipe subshell may miss some changes on first pass for already-copied libs).
+for binary in "$BIN"/* "$LIB"/*; do
+  [[ -f "$binary" ]] || continue
+  otool -L "$binary" | tail -n +2 | awk '{print $1}' | while read -r lib; do
+    case "$lib" in
+      "$BREW_PREFIX"/*)
+        base="$(basename "$lib")"
+        if [[ -f "$LIB/$base" ]]; then
+          install_name_tool -change "$lib" "@executable_path/../lib/$base" "$binary" 2>/dev/null || true
+        fi
+        ;;
+    esac
+  done
 done
 
 LIBHEIF_PREFIX="$(brew --prefix libheif 2>/dev/null || true)"
 if [[ -n "$LIBHEIF_PREFIX" && -d "$LIBHEIF_PREFIX/lib" ]]; then
-  cp "$LIBHEIF_PREFIX/lib/"*.dylib "$LIB/" 2>/dev/null || true
+  for dylib in "$LIBHEIF_PREFIX/lib/"*.dylib; do
+    [[ -f "$dylib" ]] || continue
+    cp "$dylib" "$LIB/"
+  done
 fi
 
 echo "Binaires OCR préparés dans $VENDOR"

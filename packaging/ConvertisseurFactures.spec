@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-ROOT = Path(SPECPATH).resolve().parent.parent
+# SPECPATH = dossier packaging/ ; la racine du repo est le parent.
+ROOT = Path(SPECPATH).resolve().parent
 
 a = Analysis(
     [str(ROOT / "app" / "launcher.py")],

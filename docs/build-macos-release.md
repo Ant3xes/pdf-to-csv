@@ -5,32 +5,13 @@ Guide mainteneur pour produire un `.dmg` **Convertisseur Factures** et le publie
 ## Prérequis
 
 - macOS avec Xcode Command Line Tools (`xcode-select --install`)
-- Compte [Apple Developer](https://developer.apple.com) (99 €/an) pour signature et notarisation
 - Homebrew avec Tesseract, Poppler et la langue française :
 
 ```bash
 brew install tesseract tesseract-lang poppler libheif
 ```
 
-- Certificat **Developer ID Application** installé dans le Trousseau
-- Profil notarytool configuré localement (jamais commité) :
-
-```bash
-xcrun notarytool store-credentials "pdf-to-csv-notarize" \
-  --apple-id "votre@email.com" \
-  --team-id "VOTRE_TEAM_ID" \
-  --password "mot-de-passe-app-specifique"
-```
-
-## Variables d'environnement (locales)
-
-| Variable | Rôle |
-|---|---|
-| `APPLE_SIGNING_IDENTITY` | Nom du certificat Developer ID, ex. `Developer ID Application: …` |
-| `APPLE_NOTARIZE_KEYCHAIN_PROFILE` | Profil notarytool, ex. `pdf-to-csv-notarize` |
-| `VERSION` | Version sémantique, ex. `1.0.0` (sans préfixe `v`) |
-
-Ces valeurs restent sur la machine du mainteneur — ne jamais les committer.
+**Pas de compte Apple Developer requis** : la release est distribuée **non signée**. L'utilisateur final contourne Gatekeeper une fois (clic droit → Ouvrir). La signature / notarisation restent optionnelles si un certificat Developer ID est un jour disponible.
 
 ## Build
 
@@ -39,9 +20,6 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt -r requirements-build.txt
 
-export APPLE_SIGNING_IDENTITY="Developer ID Application: …"
-export APPLE_NOTARIZE_KEYCHAIN_PROFILE="pdf-to-csv-notarize"
-
 ./scripts/build-release.sh 1.0.0
 ```
 
@@ -49,10 +27,20 @@ Le script :
 
 1. Prépare `packaging/vendor/` (Tesseract, Poppler, tessdata `fra`)
 2. Lance PyInstaller → `dist/Convertisseur Factures.app`
-3. Signe et notarise (si variables définies)
-4. Produit `dist/ConvertisseurFactures-1.0.0.dmg`
+3. Produit `dist/ConvertisseurFactures-1.0.0.dmg`
 
-Sans variables de signature, le build produit quand même l'application — utile en dev, mais Gatekeeper bloquera chez l'utilisateur final.
+Variable optionnelle : `VERSION` (sinon passer la version en argument).
+
+## Signature / notarisation (optionnel)
+
+Si un certificat Developer ID est disponible plus tard :
+
+| Variable | Rôle |
+|---|---|
+| `APPLE_SIGNING_IDENTITY` | Nom du certificat, ex. `Developer ID Application: …` |
+| `APPLE_NOTARIZE_KEYCHAIN_PROFILE` | Profil notarytool local |
+
+Ces valeurs restent sur la machine du mainteneur — ne jamais les committer. Sans elles, le build ignore signature et notarisation.
 
 ## Publication GitHub Releases
 
@@ -63,7 +51,7 @@ git push origin v1.0.0
 gh release create v1.0.0 \
   dist/ConvertisseurFactures-1.0.0.dmg \
   --title "v1.0.0" \
-  --notes "Première version de l'application macOS."
+  --notes "Première version de l'application macOS (non signée)."
 ```
 
 Lien permanent pour l'utilisateur :
@@ -78,7 +66,7 @@ Sur une machine non développeur (ou compte standard) :
 
 1. Télécharger le `.dmg` depuis la release
 2. Glisser **Convertisseur Factures** dans Applications
-3. Double-clic — pas d'avertissement Gatekeeper bloquant
+3. **Première ouverture** : clic droit → Ouvrir → confirmer (Gatekeeper, app non signée)
 4. Déposer un lot de **Factures** (PDF natif + scanné + image)
 5. Corriger une ligne « À vérifier » si nécessaire
 6. Exporter le CSV et l'ouvrir dans Excel
