@@ -115,12 +115,6 @@ def normalize_date(raw: str, date_formats: list[str]) -> str | None:
     return f"{int(day):02d}/{month}/{year}"
 
 
-def normalize_amount(
-    raw: str, decimal_separator: str, amount_sign: str | None = None
-) -> MontantHt | None:
-    return MontantHt.from_raw(raw, decimal_separator, amount_sign)
-
-
 def ascii_fold(value: str) -> str:
     return (
         unicodedata.normalize("NFKD", value)
@@ -192,7 +186,7 @@ def generic_amount(text: str) -> MontantHt | None:
                 continue
             raw = match.group(1)
             sep = "," if "," in raw else "."
-            normalized = normalize_amount(raw, sep)
+            normalized = MontantHt.from_raw(raw, sep)
             if normalized:
                 candidates.append(normalized)
     return _unique_montant_or_none(candidates)

@@ -6,7 +6,8 @@ from pathlib import Path
 import yaml
 
 from app.models import STATUT_A_VERIFIER, STATUT_OK, LigneFacture, Template
-from app.normalisation import normalize_amount, normalize_date
+from app.amounts import MontantHt
+from app.normalisation import normalize_date
 
 
 def load_templates(templates_dir: Path) -> list[Template]:
@@ -58,7 +59,7 @@ def apply_template(
         normalize_date(raw_date, list(template.date_formats)) if raw_date else None
     )
     montant = (
-        normalize_amount(
+        MontantHt.from_raw(
             raw_amount, template.decimal_separator, template.amount_sign
         )
         if raw_amount

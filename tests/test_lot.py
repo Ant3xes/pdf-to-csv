@@ -10,6 +10,10 @@ TEMPLATES = Path(__file__).resolve().parents[1] / "invoice_templates"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
+def _montant_fr(ligne):
+    return ligne.montant_ht.format_fr() if ligne.montant_ht else None
+
+
 def test_lot_masse_extrait_emetteur_date_montant_ok():
     lignes = process_lot(
         [CORPUS / "Masse 22 Juillet 26.pdf"],
@@ -21,7 +25,7 @@ def test_lot_masse_extrait_emetteur_date_montant_ok():
     assert ligne.fichier == "Masse 22 Juillet 26.pdf"
     assert ligne.emetteur == "Masse"
     assert ligne.date == "22/07/2026"
-    assert ligne.montant_ht == "751,95"
+    assert _montant_fr(ligne) == "751,95"
     assert ligne.statut == "OK"
 
 
@@ -36,7 +40,7 @@ def test_lot_domaine_des_jumeaux_net_a_payer_ok():
     assert ligne.fichier == "Domaine des jumeaux 4 Juillet 26.pdf"
     assert ligne.emetteur == "Domaine des Jumeaux"
     assert ligne.date == "04/07/2026"
-    assert ligne.montant_ht == "349,20"
+    assert _montant_fr(ligne) == "349,20"
     assert ligne.statut == "OK"
 
 
@@ -51,7 +55,7 @@ def test_lot_devaud_une_seule_ligne_malgre_multi_pages_et_bl():
     assert ligne.fichier == "devaud 20 Juillet 26.pdf"
     assert ligne.emetteur == "Devaud"
     assert ligne.date == "20/07/2026"
-    assert ligne.montant_ht == "582,02"
+    assert _montant_fr(ligne) == "582,02"
     assert ligne.statut == "OK"
 
 
@@ -66,7 +70,7 @@ def test_lot_aluplast_montant_ht_pas_ttc_ni_tva():
     assert ligne.fichier == "Aluplast 13 Juillet 26.pdf"
     assert ligne.emetteur == "Aluplast"
     assert ligne.date == "13/07/2026"
-    assert ligne.montant_ht == "269,50"
+    assert _montant_fr(ligne) == "269,50"
     assert ligne.statut == "OK"
 
 
@@ -84,13 +88,13 @@ def test_lot_hennequin_facture_et_avoir_meme_template():
     assert facture.fichier == "Hennequin 20 Juillet 26.pdf"
     assert facture.emetteur == "Hennequin"
     assert facture.date == "20/07/2026"
-    assert facture.montant_ht == "1 751,30".replace(" ", "")
+    assert _montant_fr(facture) == "1 751,30".replace(" ", "")
     assert facture.statut == "OK"
     assert facture.type_document == TYPE_FACTURE
     assert avoir.fichier == "Hennequin AVOIR 10 Juillet 26.pdf"
     assert avoir.emetteur == "Hennequin"
     assert avoir.date == "10/07/2026"
-    assert avoir.montant_ht == "-1 350,50".replace(" ", "")
+    assert _montant_fr(avoir) == "-1 350,50".replace(" ", "")
     assert avoir.statut == "OK"
     assert avoir.type_document == TYPE_AVOIR
 
@@ -106,7 +110,7 @@ def test_lot_veolia_avoir_extrait_credit_et_date():
     assert ligne.fichier == "Véolia eaux Avoir 22 Juillet 26.pdf"
     assert ligne.emetteur == "Veolia Eau"
     assert ligne.date == "22/07/2026"
-    assert ligne.montant_ht == "-1070,27"
+    assert _montant_fr(ligne) == "-1070,27"
     assert ligne.statut == "OK"
     assert ligne.type_document == TYPE_AVOIR
 
@@ -129,7 +133,7 @@ def test_lot_vives_eaux_factures_et_avoir_meme_template():
     ]
     assert all(ligne.emetteur == "Vives Eaux" for ligne in lignes)
     assert [ligne.date for ligne in lignes] == ["10/07/2026", "20/07/2026", "20/07/2026"]
-    assert [ligne.montant_ht for ligne in lignes] == ["2448,31", "3513,46", "-32,50"]
+    assert [_montant_fr(ligne) for ligne in lignes] == ["2448,31", "3513,46", "-32,50"]
     assert all(ligne.statut == "OK" for ligne in lignes)
     assert [ligne.type_document for ligne in lignes] == [
         TYPE_FACTURE,
@@ -156,7 +160,7 @@ def test_lot_plusieurs_pdf_meme_fournisseur_restent_lignes_distinctes():
     ]
     assert [l.emetteur for l in lignes] == ["Masse", "Masse", "Masse"]
     assert [l.date for l in lignes] == ["22/07/2026", "23/07/2026", "28/07/2026"]
-    assert [l.montant_ht for l in lignes] == ["751,95", "203,29", "623,15"]
+    assert [_montant_fr(l) for l in lignes] == ["751,95", "203,29", "623,15"]
     assert all(l.statut == "OK" for l in lignes)
 
 
@@ -172,7 +176,7 @@ def test_lot_facture_sans_template_filet_date_montant_a_verifier(tmp_path):
     assert ligne.fichier == "ACR 1 Juillet 26.pdf"
     assert ligne.emetteur is None
     assert ligne.date == "01/07/2026"
-    assert ligne.montant_ht == "120,00"
+    assert _montant_fr(ligne) == "120,00"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -191,11 +195,11 @@ def test_lot_filet_generique_corpus_sans_template(tmp_path):
     assert [l.emetteur for l in lignes] == [None, None, None]
     assert all(l.statut == "A_VERIFIER" for l in lignes)
     assert lignes[0].date == "20/07/2026"
-    assert lignes[0].montant_ht == "227,27"
+    assert _montant_fr(lignes[0]) == "227,27"
     assert lignes[1].date == "01/07/2026"
-    assert lignes[1].montant_ht == "547,57"
+    assert _montant_fr(lignes[1]) == "547,57"
     assert lignes[2].date == "19/07/2026"
-    assert lignes[2].montant_ht == "11,00"
+    assert _montant_fr(lignes[2]) == "11,00"
 
 
 def test_lot_filet_rien_extractible_champs_vides_a_verifier():
@@ -228,7 +232,7 @@ def test_lot_detection_ambigue_filet_sans_emetteur(tmp_path):
     assert ligne.fichier == "detection_ambigue_masse_aluplast.pdf"
     assert ligne.emetteur is None
     assert ligne.date == "12/03/2026"
-    assert ligne.montant_ht == "55,50"
+    assert _montant_fr(ligne) == "55,50"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -243,7 +247,7 @@ def test_lot_filet_dates_ambigues_date_vide():
     ligne = lignes[0]
     assert ligne.emetteur is None
     assert ligne.date is None
-    assert ligne.montant_ht == "100,00"
+    assert _montant_fr(ligne) == "100,00"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -256,8 +260,8 @@ def test_lot_filet_ht_vs_ttc_retient_ht():
 
     assert len(lignes) == 1
     ligne = lignes[0]
-    assert ligne.montant_ht == "80,00"
-    assert ligne.montant_ht != "100,00"
+    assert _montant_fr(ligne) == "80,00"
+    assert _montant_fr(ligne) != "100,00"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -281,7 +285,7 @@ def test_lot_acr_template_ok():
     ligne = lignes[0]
     assert ligne.emetteur == "ACR"
     assert ligne.date == "01/07/2026"
-    assert ligne.montant_ht == "120,00"
+    assert _montant_fr(ligne) == "120,00"
     assert ligne.statut == "OK"
 
 
@@ -291,7 +295,7 @@ def test_lot_spre_template_ok():
     ligne = lignes[0]
     assert ligne.emetteur == "SPRE"
     assert ligne.date == "01/07/2026"
-    assert ligne.montant_ht == "547,57"
+    assert _montant_fr(ligne) == "547,57"
     assert ligne.statut == "OK"
 
 
@@ -301,7 +305,7 @@ def test_lot_youtrust_template_ok():
     ligne = lignes[0]
     assert ligne.emetteur == "Youtrust"
     assert ligne.date == "19/07/2026"
-    assert ligne.montant_ht == "11,00"
+    assert _montant_fr(ligne) == "11,00"
     assert ligne.statut == "OK"
 
 
@@ -312,7 +316,7 @@ def test_lot_compagnie_deboucheurs_template_ok():
     ligne = lignes[0]
     assert ligne.emetteur == "Compagnie des Déboucheurs"
     assert ligne.date == "20/07/2026"
-    assert ligne.montant_ht == "227,27"
+    assert _montant_fr(ligne) == "227,27"
     assert ligne.statut == "OK"
 
 
@@ -322,7 +326,7 @@ def test_lot_domaine_verzier_template_ok():
     ligne = lignes[0]
     assert ligne.emetteur == "Domaine Verzier"
     assert ligne.date == "29/07/2026"
-    assert ligne.montant_ht == "956,60"
+    assert _montant_fr(ligne) == "956,60"
     assert ligne.statut == "OK"
 
 
@@ -337,7 +341,7 @@ def test_lot_valrhona_deux_pdf_meme_template_ok():
     assert len(lignes) == 2
     assert all(l.emetteur == "Valrhona" for l in lignes)
     assert [l.date for l in lignes] == ["01/07/2026", "20/07/2026"]
-    assert [l.montant_ht for l in lignes] == ["186,78", "186,78"]
+    assert [_montant_fr(l) for l in lignes] == ["186,78", "186,78"]
     assert all(l.statut == "OK" for l in lignes)
 
 
@@ -352,7 +356,7 @@ def test_lot_anse_du_piquet_deux_pdf_meme_template_ok():
     assert len(lignes) == 2
     assert all(l.emetteur == "L'Anse du Piquet" for l in lignes)
     assert [l.date for l in lignes] == ["10/07/2026", "20/07/2026"]
-    assert [l.montant_ht for l in lignes] == ["166,40", "416,00"]
+    assert [_montant_fr(l) for l in lignes] == ["166,40", "416,00"]
     assert all(l.statut == "OK" for l in lignes)
 
 
@@ -363,7 +367,7 @@ def test_lot_metro_deux_pdf_meme_template_ok():
     assert len(lignes) == 2
     assert all(l.emetteur == "Métro" for l in lignes)
     assert [l.date for l in lignes] == ["01/07/2026", "08/07/2026"]
-    assert [l.montant_ht for l in lignes] == ["1837,04", "2166,78"]
+    assert [_montant_fr(l) for l in lignes] == ["1837,04", "2166,78"]
     assert all(l.statut == "OK" for l in lignes)
 
 
@@ -375,7 +379,7 @@ def test_lot_hotel_formule1_ocr_champs_mais_a_verifier():
     assert ligne.fichier == formule.name
     assert ligne.emetteur == "Hotel Formule 1"
     assert ligne.date == "05/07/2026"
-    assert ligne.montant_ht == "30,91"
+    assert _montant_fr(ligne) == "30,91"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -390,7 +394,7 @@ def test_lot_altagel_scan_ocr_extrait_champs_mais_a_verifier():
     assert ligne.fichier == "Altagel 10 Juillet 26.pdf"
     assert ligne.emetteur == "Altagel"
     assert ligne.date == "10/07/2026"
-    assert ligne.montant_ht == "362,33"
+    assert _montant_fr(ligne) == "362,33"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -406,7 +410,7 @@ def test_lot_altagel_montant_avec_separateur_milliers():
     assert ligne.fichier == "Altagel 20 Juillet 26.pdf"
     assert ligne.emetteur == "Altagel"
     assert ligne.date == "20/07/2026"
-    assert ligne.montant_ht == "955,76"
+    assert _montant_fr(ligne) == "955,76"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -421,7 +425,7 @@ def test_lot_pdf_sans_texte_natif_bascule_ocr_avant_extraction():
     assert ligne.fichier == "scan_sans_texte.pdf"
     assert ligne.emetteur == "Altagel"
     assert ligne.date == "15/03/2026"
-    assert ligne.montant_ht == "99,50"
+    assert _montant_fr(ligne) == "99,50"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -453,7 +457,7 @@ def test_lot_date_invalide_a_verifier():
     assert ligne.fichier == "date_invalide.pdf"
     assert ligne.emetteur == "Masse"
     assert ligne.date is None
-    assert ligne.montant_ht == "100,00"
+    assert _montant_fr(ligne) == "100,00"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -524,7 +528,7 @@ def test_lot_image_png_template_connu_a_verifier():
     assert ligne.fichier == "scan_sans_texte.png"
     assert ligne.emetteur == "Altagel"
     assert ligne.date == "15/03/2026"
-    assert ligne.montant_ht == "99,50"
+    assert _montant_fr(ligne) == "99,50"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -540,7 +544,7 @@ def test_lot_image_jpg_sans_template_filet_a_verifier(tmp_path):
     assert ligne.fichier == "detection_ambigue_masse_aluplast.jpg"
     assert ligne.emetteur is None
     assert ligne.date == "12/03/2026"
-    assert ligne.montant_ht == "55,50"
+    assert _montant_fr(ligne) == "55,50"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -569,7 +573,7 @@ def test_lot_heic_template_connu_a_verifier():
     assert ligne.fichier == "scan_sans_texte.heic"
     assert ligne.emetteur == "Altagel"
     assert ligne.date == "15/03/2026"
-    assert ligne.montant_ht == "99,50"
+    assert _montant_fr(ligne) == "99,50"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -618,7 +622,7 @@ def test_lot_image_detection_ambigue_filet_sans_emetteur(tmp_path):
     ligne = lignes[0]
     assert ligne.emetteur is None
     assert ligne.date == "12/03/2026"
-    assert ligne.montant_ht == "55,50"
+    assert _montant_fr(ligne) == "55,50"
     assert ligne.statut == "A_VERIFIER"
 
 
@@ -632,7 +636,7 @@ def test_lot_image_date_invalide_a_verifier():
     ligne = lignes[0]
     assert ligne.emetteur == "Masse"
     assert ligne.date is None
-    assert ligne.montant_ht == "100,00"
+    assert _montant_fr(ligne) == "100,00"
     assert ligne.statut == "A_VERIFIER"
 
 

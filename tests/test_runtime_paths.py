@@ -13,6 +13,10 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 TEMPLATES = Path(__file__).resolve().parents[1] / "invoice_templates"
 
 
+def _montant_fr(ligne):
+    return ligne.montant_ht.format_fr() if ligne.montant_ht else None
+
+
 @pytest.fixture(autouse=True)
 def _reset_runtime_paths():
     from app.runtime_paths import reset_runtime_paths
@@ -102,5 +106,5 @@ def test_process_lot_ocr_with_configured_runtime_paths():
     assert ligne.fichier == "scan_sans_texte.pdf"
     assert ligne.emetteur == "Altagel"
     assert ligne.date == "15/03/2026"
-    assert ligne.montant_ht == "99,50"
+    assert _montant_fr(ligne) == "99,50"
     assert ligne.statut == "A_VERIFIER"

@@ -51,27 +51,10 @@ class MontantHt:
     def format_fr(self) -> str:
         return f"{self.value:.2f}".replace(".", ",")
 
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, MontantHt):
-            return self.value == other.value
-        if isinstance(other, str):
-            parsed = MontantHt.parse_fr(other)
-            return parsed is not None and self.value == parsed.value
-        return NotImplemented
-
-    def __hash__(self) -> int:
-        return hash(self.value)
-
     def __add__(self, other: MontantHt) -> MontantHt:
         if not isinstance(other, MontantHt):
             return NotImplemented
         return MontantHt(self.value + other.value)
-
-
-def parse_montant_ht_fr(raw: str | None) -> Decimal:
-    """Parse FR → Decimal ; 0 si vide ou invalide (agrégation tolérante)."""
-    parsed = MontantHt.parse_fr(raw)
-    return parsed.value if parsed is not None else Decimal("0")
 
 
 def format_montant_ht_fr(value: Decimal | float | int) -> str:
