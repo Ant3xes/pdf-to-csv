@@ -53,12 +53,33 @@
     if (!lignes.length) {
       return null;
     }
+    const aVerifier = [];
     for (const ligne of lignes) {
       if (ligne.statut === "A_VERIFIER") {
-        return "Export impossible : des factures sont encore à vérifier.";
+        const raisons = Array.isArray(ligne.raisons_diagnostic)
+          ? ligne.raisons_diagnostic.filter(Boolean)
+          : [];
+        const detail =
+          raisons.length > 0
+            ? `${ligne.fichier} (${raisons.join(", ")})`
+            : String(ligne.fichier);
+        aVerifier.push(detail);
       }
+    }
+    if (aVerifier.length > 0) {
+      return (
+        "Export impossible : des factures sont encore à vérifier — " +
+        aVerifier.join(" ; ") +
+        "."
+      );
+    }
+    for (const ligne of lignes) {
       if (ligne.emetteur == null || String(ligne.emetteur).trim() === "") {
-        return "Export impossible : une facture n'a pas d'émetteur.";
+        return (
+          "Export impossible : une facture n'a pas d'émetteur" +
+          (ligne.fichier ? ` (${ligne.fichier})` : "") +
+          "."
+        );
       }
     }
     return null;

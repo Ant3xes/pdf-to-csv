@@ -23,6 +23,7 @@ class LigneFacture:
     montant_ht: MontantHt | None
     statut: str
     type_document: str
+    raisons_diagnostic: tuple[str, ...] = ()
 
     def to_api_dict(self) -> dict[str, Any]:
         return {
@@ -32,6 +33,7 @@ class LigneFacture:
             "montant_ht": self.montant_ht.format_fr() if self.montant_ht else None,
             "statut": self.statut,
             "type_document": self.type_document,
+            "raisons_diagnostic": list(self.raisons_diagnostic),
         }
 
 

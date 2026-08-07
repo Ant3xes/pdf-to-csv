@@ -103,7 +103,9 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
                         "error": (
                             "Échec technique du traitement du lot. "
                             "Exportez le journal pour le diagnostic."
-                        )
+                        ),
+                        "error_detail": f"{type(exc).__name__}: {exc}",
+                        "journal_disponible": not journal.is_empty(),
                     }
                 ), 500
             return jsonify(

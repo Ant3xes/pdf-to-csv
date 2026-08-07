@@ -33,6 +33,8 @@ def stop_server(server: BaseWSGIServer) -> None:
 def run_desktop_app() -> None:
     import webview
 
+    from app.desktop_api import DesktopApi
+
     server, url, _thread = start_server()
     try:
         webview.create_window(
@@ -41,6 +43,7 @@ def run_desktop_app() -> None:
             width=WINDOW_WIDTH,
             height=WINDOW_HEIGHT,
             zoomable=True,
+            js_api=DesktopApi(),
         )
         webview.start()
     finally:

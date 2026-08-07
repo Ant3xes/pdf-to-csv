@@ -708,9 +708,55 @@ def test_static_js_exporte_journal_via_api(client):
     js = response.data.decode()
     assert "/api/journal" in js
     assert "export-journal" in js
-    assert "journal" in js.lower()
-    # Indépendant du verrou CSV
-    assert "exportJournal" in js or "export-journal" in js
+    assert "exportJournal" in js
+    assert "saveJournalText" in js
+    assert "save_text_file" in js
+    assert "showSaveFilePicker" in js
+    # Texte en mémoire, pas de navigation vers le journal comme page
+    assert "response.text()" in js
+    assert 'link.href = "/api/journal"' not in js
+
+
+def test_static_js_filtre_formats_non_supportes(client):
+    """Le client refuse les formats non supportés avant l'envoi (A)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "isSupportedDocumentName" in js
+    assert "SUPPORTED_SUFFIXES" in js
+    assert "n'est pas un format exploitable" in js
+
+
+def test_static_js_affiche_raisons_diagnostic(client):
+    """UI affiche raisons_diagnostic sous le statut À vérifier (C)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "raisons_diagnostic" in js
+    assert "statut-raisons" in js
+    assert "error_detail" in js
+
+
+def test_lot_grouping_blocage_export_cite_raisons(client):
+    response = client.get("/static/lot_grouping.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "raisons_diagnostic" in js
+    assert "encore à vérifier —" in js
+
+
+def test_launcher_expose_save_text_file_api():
+    from app.desktop_api import DesktopApi
+    from app.launcher import run_desktop_app
+    import inspect
+
+    assert hasattr(DesktopApi, "save_text_file")
+    source = inspect.getsource(run_desktop_app)
+    assert "DesktopApi" in source
+    assert "js_api" in source
 
 
 def test_api_journal_lot_ok_contient_diagnostics_pipeline(client):
@@ -835,6 +881,10 @@ def test_api_journal_capture_exception_technique(client, monkeypatch):
     assert response.status_code == 500
     payload = response.get_json()
     assert "error" in payload
+    assert "error_detail" in payload
+    assert "RuntimeError" in payload["error_detail"]
+    assert "ocr_ko_simule" in payload["error_detail"]
+    assert payload.get("journal_disponible") is True
 
     journal = client.get("/api/journal")
     assert journal.status_code == 200
@@ -842,3 +892,21 @@ def test_api_journal_capture_exception_technique(client, monkeypatch):
     assert "EXCEPTION" in body or "RuntimeError" in body
     assert "ocr_ko_simule" in body
     assert "Traceback" in body or "traceback" in body.lower()
+
+
+def test_api_lot_ligne_a_verifier_expose_raisons_diagnostic(client):
+    """Réponse /api/lot inclut raisons_diagnostic pour À vérifier (C)."""
+    pdf_path = CORPUS / "Altagel 10 Juillet 26.pdf"
+    with pdf_path.open("rb") as fh:
+        response = client.post(
+            "/api/lot",
+            data={"files": (fh, "Altagel 10 Juillet 26.pdf")},
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 200
+    ligne = response.get_json()["lignes"][0]
+    assert ligne["statut"] == "A_VERIFIER"
+    assert isinstance(ligne.get("raisons_diagnostic"), list)
+    assert len(ligne["raisons_diagnostic"]) > 0
+    assert "OCR" in ligne["raisons_diagnostic"]

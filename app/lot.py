@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,7 @@ __all__ = [
     "corriger_ligne",
     "is_supported_document",
     "process_lot",
+    "raisons_diagnostic_pour",
     "supported_document_formats_label",
 ]
 
@@ -61,14 +63,14 @@ def _template_detection_label(matches: list[Template]) -> str:
     return f"Détection ambiguë ({issuers})"
 
 
-def _raisons_diagnostic(
+def raisons_diagnostic_pour(
     *,
     from_ocr: bool,
     match_count: int,
     ligne: LigneFacture,
-) -> list[str]:
+) -> tuple[str, ...]:
     if ligne.statut == STATUT_OK:
-        return []
+        return ()
     reasons: list[str] = []
     if match_count == 0:
         reasons.append("aucun Template")
@@ -82,7 +84,7 @@ def _raisons_diagnostic(
         reasons.append("date manquante ou invalide")
     if not ligne.montant_ht:
         reasons.append("montant HT manquant ou invalide")
-    return reasons or ["À vérifier"]
+    return tuple(reasons) if reasons else ("À vérifier",)
 
 
 def _record_ligne(
@@ -93,9 +95,7 @@ def _record_ligne(
     matches: list[Template],
 ) -> None:
     montant = ligne.montant_ht.format_fr() if ligne.montant_ht else ""
-    raisons = _raisons_diagnostic(
-        from_ocr=from_ocr, match_count=len(matches), ligne=ligne
-    )
+    raisons = ligne.raisons_diagnostic
     journal.record(
         f"fichier={ligne.fichier} "
         f"source={'OCR' if from_ocr else 'natif'} "
@@ -137,6 +137,14 @@ def process_lot(
                 fichier=path.name,
                 type_document=type_document,
             )
+        ligne = replace(
+            ligne,
+            raisons_diagnostic=raisons_diagnostic_pour(
+                from_ocr=source.from_ocr,
+                match_count=len(matches),
+                ligne=ligne,
+            ),
+        )
         lignes.append(ligne)
         if journal is not None:
             _record_ligne(

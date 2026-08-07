@@ -31,6 +31,8 @@
   const TYPE_FACTURE = "FACTURE";
   const TYPE_AVOIR = "AVOIR";
   const EDITABLE_FIELDS = ["emetteur", "date", "montant_ht"];
+  const SUPPORTED_SUFFIXES = [".pdf", ".jpg", ".jpeg", ".png", ".heic"];
+  const SUPPORTED_FORMATS_LABEL = SUPPORTED_SUFFIXES.join(", ");
   const FIELD_PLACEHOLDERS = {
     emetteur: "Émetteur",
     date: "JJ/MM/AAAA",
@@ -94,6 +96,11 @@
     });
     const blob = Array.isArray(converted) ? converted[0] : converted;
     return URL.createObjectURL(blob);
+  }
+
+  function isSupportedDocumentName(filename) {
+    const lower = String(filename).toLowerCase();
+    return SUPPORTED_SUFFIXES.some((suffix) => lower.endsWith(suffix));
   }
 
   function statutLabel(statut) {
@@ -437,7 +444,7 @@
     if (!ligne || ligne.statut !== "A_VERIFIER" || !champsRemplis(ligne)) {
       return;
     }
-    lotLignes[index] = { ...ligne, statut: "OK" };
+    lotLignes[index] = { ...ligne, statut: "OK", raisons_diagnostic: [] };
     renderLignes(lotLignes);
   }
 
@@ -456,7 +463,19 @@
     for (const key of ["fichier", "emetteur", "date", "montant_ht", "statut"]) {
       const td = document.createElement("td");
       if (key === "statut") {
-        td.textContent = statutLabel(ligne[key]);
+        const label = document.createElement("div");
+        label.className = "statut-label";
+        label.textContent = statutLabel(ligne[key]);
+        td.appendChild(label);
+        const raisons = Array.isArray(ligne.raisons_diagnostic)
+          ? ligne.raisons_diagnostic.filter(Boolean)
+          : [];
+        if (ligne.statut === "A_VERIFIER" && raisons.length > 0) {
+          const detail = document.createElement("p");
+          detail.className = "statut-raisons";
+          detail.textContent = raisons.join(" • ");
+          td.appendChild(detail);
+        }
       } else if (EDITABLE_FIELDS.includes(key)) {
         const input = document.createElement("input");
         input.type = "text";
@@ -696,18 +715,69 @@
         showError(payload.error || "Échec de l'export du journal.");
         return;
       }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "journal.txt";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      const text = await response.text();
+      const saved = await saveJournalText(text);
+      if (saved === "cancelled") {
+        return;
+      }
+      if (saved === false) {
+        showError("Impossible d'enregistrer le journal.");
+      }
     } catch (err) {
       showError("Impossible d'exporter le journal (serveur injoignable).");
     }
+  }
+
+  /**
+   * Enregistre le journal sans l'afficher dans l'UI.
+   * @returns {Promise<"ok"|"cancelled"|false>}
+   */
+  async function saveJournalText(text) {
+    const suggestedName = "journal.txt";
+    const api = window.pywebview && window.pywebview.api;
+    if (api && typeof api.save_text_file === "function") {
+      const result = await api.save_text_file(suggestedName, text);
+      if (result && result.cancelled) {
+        return "cancelled";
+      }
+      if (result && result.saved) {
+        return "ok";
+      }
+      return false;
+    }
+    if (typeof window.showSaveFilePicker === "function") {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: "Journal",
+              accept: { "text/plain": [".txt", ".log"] },
+            },
+          ],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(text);
+        await writable.close();
+        return "ok";
+      } catch (err) {
+        if (err && (err.name === "AbortError" || err.name === "NotAllowedError")) {
+          return "cancelled";
+        }
+        return false;
+      }
+    }
+    // Fallback navigateur : téléchargement sans navigation
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = suggestedName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    return "ok";
   }
 
   async function uploadLot(fileList) {
@@ -716,6 +786,26 @@
       return;
     }
 
+    const unsupported = [];
+    const candidates = [];
+    for (const file of files) {
+      if (isSupportedDocumentName(file.name)) {
+        candidates.push(file);
+      } else {
+        unsupported.push(file.name);
+      }
+    }
+    const unsupportedWarning =
+      unsupported.length === 0
+        ? ""
+        : unsupported
+            .map(
+              (name) =>
+                `Le fichier «${name}» n'est pas un format exploitable. ` +
+                `Formats acceptés : ${SUPPORTED_FORMATS_LABEL}.`,
+            )
+            .join(" ");
+
     const existingNames = new Set([
       ...lotLignes.map((ligne) => ligne.fichier),
       ...depositedFiles.keys(),
@@ -723,7 +813,7 @@
     const accepted = [];
     const duplicates = [];
     const seenInBatch = new Set();
-    for (const file of files) {
+    for (const file of candidates) {
       if (existingNames.has(file.name) || seenInBatch.has(file.name)) {
         duplicates.push(file.name);
       } else {
@@ -740,7 +830,10 @@
             .join(" ");
 
     if (accepted.length === 0) {
-      showError(duplicateWarning || "Aucun fichier reçu.");
+      showError(
+        [unsupportedWarning, duplicateWarning].filter(Boolean).join(" ") ||
+          "Aucun fichier reçu.",
+      );
       fileInput.value = "";
       return;
     }
@@ -768,10 +861,16 @@
       if (!response.ok) {
         forgetFiles(appendedNames);
         if (response.status === 500) {
-          journalDisponible = true;
+          journalDisponible = Boolean(payload.journal_disponible) || true;
+          const parts = [
+            payload.error || "Échec du traitement du lot.",
+            payload.error_detail,
+          ].filter(Boolean);
+          showError(parts.join(" "));
+        } else {
+          showError(payload.error || "Échec du traitement du lot.");
         }
         syncExportJournalButton();
-        showError(payload.error || "Échec du traitement du lot.");
         return;
       }
       const nouvelles = payload.lignes || [];
@@ -780,6 +879,9 @@
       keepFilesForLignes(merged);
       renderLignes(merged);
       const warnings = Array.isArray(payload.warnings) ? [...payload.warnings] : [];
+      if (unsupportedWarning) {
+        warnings.push(unsupportedWarning);
+      }
       if (duplicateWarning) {
         warnings.push(duplicateWarning);
       }
