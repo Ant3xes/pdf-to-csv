@@ -11,6 +11,7 @@
   const issuerGroups = document.getElementById("issuer-groups");
   const exportButton = document.getElementById("export-csv");
   const exportJournalButton = document.getElementById("export-journal");
+  const resetLotButton = document.getElementById("reset-lot");
   const appShell = document.querySelector(".app-shell");
   const splitHandle = document.getElementById("split-handle");
   const mainPane = document.getElementById("main-pane");
@@ -43,6 +44,8 @@
   let lotLignes = [];
   /** Journal de diagnostic disponible côté serveur pour le Lot courant. */
   let journalDisponible = false;
+  /** Incrémenté à chaque reset pour ignorer les réponses d’upload obsolètes. */
+  let lotGeneration = 0;
   /** filename → object URL pour ouvrir le fichier (éphémère, côté navigateur uniquement). */
   const fileUrls = new Map();
   /** filename → File déposé (conservé pour conversion HEIC à l'ouverture). */
@@ -335,13 +338,27 @@
     depositedFiles.clear();
   }
 
-  function rememberFiles(files) {
-    clearFileUrls();
+  function appendFiles(files) {
     for (const file of files) {
       depositedFiles.set(file.name, file);
       if (!isHeicFile(file)) {
         fileUrls.set(file.name, URL.createObjectURL(file));
       }
+    }
+  }
+
+  function forgetFiles(names) {
+    const toForget = new Set(names);
+    for (const name of toForget) {
+      depositedFiles.delete(name);
+      const url = fileUrls.get(name);
+      if (url) {
+        URL.revokeObjectURL(url);
+        fileUrls.delete(name);
+      }
+    }
+    if (previewedFilename && toForget.has(previewedFilename)) {
+      clearPreview();
     }
   }
 
@@ -625,6 +642,17 @@
     refreshGroupingUi();
   }
 
+  function resetLot() {
+    lotGeneration += 1;
+    clearFileUrls();
+    journalDisponible = false;
+    renderLignes([]);
+    showError("");
+    setProcessing(false);
+    fileInput.value = "";
+    syncExportJournalButton();
+  }
+
   async function exportLotCsv() {
     const raison = LotGrouping.raisonExportBloque(lotLignes);
     if (lotLignes.length === 0 || raison) {
@@ -688,12 +716,43 @@
       return;
     }
 
+    const existingNames = new Set([
+      ...lotLignes.map((ligne) => ligne.fichier),
+      ...depositedFiles.keys(),
+    ]);
+    const accepted = [];
+    const duplicates = [];
+    const seenInBatch = new Set();
+    for (const file of files) {
+      if (existingNames.has(file.name) || seenInBatch.has(file.name)) {
+        duplicates.push(file.name);
+      } else {
+        seenInBatch.add(file.name);
+        accepted.push(file);
+      }
+    }
+
+    const duplicateWarning =
+      duplicates.length === 0
+        ? ""
+        : [...new Set(duplicates)]
+            .map((name) => `Le fichier «${name}» est déjà présent dans le Lot.`)
+            .join(" ");
+
+    if (accepted.length === 0) {
+      showError(duplicateWarning || "Aucun fichier reçu.");
+      fileInput.value = "";
+      return;
+    }
+
     showError("");
     setProcessing(true);
-    rememberFiles(files);
+    const generation = lotGeneration;
+    appendFiles(accepted);
+    const appendedNames = accepted.map((file) => file.name);
 
     const formData = new FormData();
-    for (const file of files) {
+    for (const file of accepted) {
       formData.append("files", file, file.name);
     }
 
@@ -702,29 +761,41 @@
         method: "POST",
         body: formData,
       });
+      if (generation !== lotGeneration) {
+        return;
+      }
       const payload = await response.json();
       if (!response.ok) {
-        clearFileUrls();
-        journalDisponible = response.status === 500;
+        forgetFiles(appendedNames);
+        if (response.status === 500) {
+          journalDisponible = true;
+        }
         syncExportJournalButton();
         showError(payload.error || "Échec du traitement du lot.");
         return;
       }
-      const lignes = payload.lignes || [];
+      const nouvelles = payload.lignes || [];
       journalDisponible = Boolean(payload.journal_disponible);
-      keepFilesForLignes(lignes);
-      renderLignes(lignes);
-      const warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+      const merged = [...lotLignes, ...nouvelles];
+      keepFilesForLignes(merged);
+      renderLignes(merged);
+      const warnings = Array.isArray(payload.warnings) ? [...payload.warnings] : [];
+      if (duplicateWarning) {
+        warnings.push(duplicateWarning);
+      }
       if (warnings.length > 0) {
         showError(warnings.join(" "));
       }
     } catch (err) {
-      clearFileUrls();
-      journalDisponible = false;
-      syncExportJournalButton();
+      if (generation !== lotGeneration) {
+        return;
+      }
+      forgetFiles(appendedNames);
       showError("Impossible de contacter le serveur.");
     } finally {
-      setProcessing(false);
+      if (generation === lotGeneration) {
+        setProcessing(false);
+      }
       fileInput.value = "";
     }
   }
@@ -759,6 +830,12 @@
   if (exportJournalButton) {
     exportJournalButton.addEventListener("click", () => {
       exportJournal();
+    });
+  }
+
+  if (resetLotButton) {
+    resetLotButton.addEventListener("click", () => {
+      resetLot();
     });
   }
 

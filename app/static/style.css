@@ -253,7 +253,8 @@ h1 {
 }
 
 #export-csv,
-#export-journal {
+#export-journal,
+#reset-lot {
   font: inherit;
   padding: 0.55rem 1rem;
   color: #fff;
@@ -261,6 +262,12 @@ h1 {
   border: none;
   border-radius: 6px;
   cursor: pointer;
+}
+
+#reset-lot {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border);
 }
 
 #export-csv:disabled,

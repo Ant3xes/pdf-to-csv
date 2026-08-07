@@ -669,6 +669,38 @@ def test_page_accueil_contient_bouton_export_journal(client):
     assert "Exporter le journal" in html
 
 
+def test_page_accueil_contient_bouton_nouveau_lot(client):
+    """Bouton Nouveau lot visible dans l’UI (#59)."""
+    response = client.get("/")
+
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert 'id="reset-lot"' in html
+    assert "Nouveau lot" in html
+
+
+def test_static_js_reset_lot_vide_session(client):
+    """JS expose un resetLot qui vide le Lot courant (#59)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "resetLot" in js
+    assert "reset-lot" in js
+
+
+def test_static_js_cumule_depots_successifs(client):
+    """JS cumule les lignes au lieu de remplacer le Lot (#60)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "appendFiles" in js
+    assert "...lotLignes" in js
+    assert "déjà présent" in js
+    assert "lotGeneration" in js
+
+
 def test_static_js_exporte_journal_via_api(client):
     response = client.get("/static/app.js")
 
