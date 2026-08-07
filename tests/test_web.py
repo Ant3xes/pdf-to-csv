@@ -666,7 +666,11 @@ def test_page_accueil_contient_bouton_export_journal(client):
     assert response.status_code == 200
     html = response.data.decode()
     assert 'id="export-journal"' in html
-    assert "Exporter le journal" in html
+    assert "Journal" in html
+    # Bouton discret dans la toolbar du panneau gauche, pas dans export-actions
+    assert "pane-toolbar-actions" in html
+    export_actions = html.split('class="export-actions"', 1)[1].split("</p>", 1)[0]
+    assert "export-journal" not in export_actions
 
 
 def test_page_accueil_contient_bouton_nouveau_lot(client):
@@ -729,23 +733,28 @@ def test_static_js_filtre_formats_non_supportes(client):
 
 
 def test_static_js_affiche_raisons_diagnostic(client):
-    """UI affiche raisons_diagnostic sous le statut À vérifier (C)."""
+    """UI affiche des messages métier sous le statut À vérifier (pas de log brut)."""
     response = client.get("/static/app.js")
 
     assert response.status_code == 200
     js = response.data.decode()
     assert "raisons_diagnostic" in js
     assert "statut-raisons" in js
-    assert "error_detail" in js
+    assert "messageUtilisateurRaisons" in js
+    assert "RAISON_MESSAGES" in js
+    assert "Document scanné" in js
+    # error_detail reste côté API, pas concaténé dans showError UI
+    assert "payload.error_detail" not in js
 
 
-def test_lot_grouping_blocage_export_cite_raisons(client):
+def test_lot_grouping_blocage_export_synthetique(client):
     response = client.get("/static/lot_grouping.js")
 
     assert response.status_code == 200
     js = response.data.decode()
-    assert "raisons_diagnostic" in js
-    assert "encore à vérifier —" in js
+    assert "encore à vérifier." in js
+    assert "aVerifierCount" in js
+    assert "encore à vérifier —" not in js
 
 
 def test_launcher_expose_save_text_file_api():

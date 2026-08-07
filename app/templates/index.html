@@ -11,10 +11,13 @@
     <main class="app-main" id="main-pane">
       <div class="pane-toolbar">
         <h1>Convertisseur de factures</h1>
-        <div id="main-zoom-controls" class="pane-zoom-controls" role="group" aria-label="Zoom du tableau">
-          <button type="button" id="main-zoom-out" aria-label="Zoom arrière du tableau">−</button>
-          <button type="button" id="main-zoom-reset" aria-label="Réinitialiser le zoom du tableau">100%</button>
-          <button type="button" id="main-zoom-in" aria-label="Zoom avant du tableau">+</button>
+        <div class="pane-toolbar-actions">
+          <div id="main-zoom-controls" class="pane-zoom-controls" role="group" aria-label="Zoom du tableau">
+            <button type="button" id="main-zoom-out" aria-label="Zoom arrière du tableau">−</button>
+            <button type="button" id="main-zoom-reset" aria-label="Réinitialiser le zoom du tableau">100%</button>
+            <button type="button" id="main-zoom-in" aria-label="Zoom avant du tableau">+</button>
+          </div>
+          <button type="button" id="export-journal" disabled title="Exporter le journal" aria-label="Exporter le journal">Journal</button>
         </div>
       </div>
 
@@ -35,7 +38,6 @@
 
           <p class="export-actions">
             <button type="button" id="export-csv" disabled>Exporter CSV</button>
-            <button type="button" id="export-journal" disabled>Exporter le journal</button>
             <button type="button" id="reset-lot">Nouveau lot</button>
           </p>
 

@@ -107,6 +107,33 @@
     return statut === "A_VERIFIER" ? "À vérifier" : statut;
   }
 
+  const RAISON_MESSAGES = {
+    "aucun Template": "Fournisseur non reconnu — saisie manuelle nécessaire",
+    "Détection ambiguë": "Plusieurs fournisseurs possibles — vérifiez les champs",
+    OCR: "Document scanné : vérifiez les valeurs extraites",
+    "émetteur manquant": "Émetteur manquant",
+    "date manquante ou invalide": "Date manquante ou invalide",
+    "montant HT manquant ou invalide": "Montant HT manquant ou invalide",
+    "À vérifier": "Vérification manuelle nécessaire",
+  };
+
+  function messageUtilisateurRaisons(raisons) {
+    const list = Array.isArray(raisons) ? raisons.filter(Boolean) : [];
+    if (list.length === 0) {
+      return "";
+    }
+    const seen = new Set();
+    const messages = [];
+    for (const code of list) {
+      const message = RAISON_MESSAGES[code] || code;
+      if (!seen.has(message)) {
+        seen.add(message);
+        messages.push(message);
+      }
+    }
+    return messages.join(" • ");
+  }
+
   function displayValue(value) {
     return value == null || value === "" ? "—" : String(value);
   }
@@ -473,7 +500,7 @@
         if (ligne.statut === "A_VERIFIER" && raisons.length > 0) {
           const detail = document.createElement("p");
           detail.className = "statut-raisons";
-          detail.textContent = raisons.join(" • ");
+          detail.textContent = messageUtilisateurRaisons(raisons);
           td.appendChild(detail);
         }
       } else if (EDITABLE_FIELDS.includes(key)) {
@@ -862,11 +889,10 @@
         forgetFiles(appendedNames);
         if (response.status === 500) {
           journalDisponible = Boolean(payload.journal_disponible) || true;
-          const parts = [
-            payload.error || "Échec du traitement du lot.",
-            payload.error_detail,
-          ].filter(Boolean);
-          showError(parts.join(" "));
+          showError(
+            payload.error ||
+              "Échec du traitement du lot. Exportez le journal pour le diagnostic.",
+          );
         } else {
           showError(payload.error || "Échec du traitement du lot.");
         }
