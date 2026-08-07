@@ -2,17 +2,23 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import traceback
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, current_app, jsonify, render_template, request
 
 from app.amounts import MontantHt
 from app.csv_export import export_csv, valider_export
+from app.diagnostics import DiagnosticJournal
 from app.lot import is_supported_document, process_lot, supported_document_formats_label
 from app.models import TYPES_DOCUMENT, LigneFacture
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _DEFAULT_TEMPLATES_DIR = _PACKAGE_DIR.parent / "invoice_templates"
+
+
+def _journal() -> DiagnosticJournal:
+    return current_app.extensions["diagnostic_journal"]
 
 
 def create_app(*, templates_dir: Path | str | None = None) -> Flask:
@@ -25,10 +31,24 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
         templates_dir if templates_dir is not None else _DEFAULT_TEMPLATES_DIR
     )
     app.config["UPLOAD_FOLDER"] = Path(tempfile.gettempdir()) / "pdf-to-csv-uploads"
+    app.extensions["diagnostic_journal"] = DiagnosticJournal()
 
     @app.get("/")
     def index():
         return render_template("index.html")
+
+    @app.get("/api/journal")
+    def api_journal():
+        journal = _journal()
+        if journal.is_empty():
+            return jsonify({"error": "Aucun journal à exporter."}), 404
+        return Response(
+            journal.export_text(),
+            mimetype="text/plain; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="journal.txt"',
+            },
+        )
 
     @app.post("/api/lot")
     def api_lot():
@@ -41,6 +61,9 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
         work_dir = Path(tempfile.mkdtemp(dir=upload_root))
 
         try:
+            journal = _journal()
+            journal.clear()
+
             document_paths: list[Path] = []
             warnings: list[str] = []
             for storage in uploads:
@@ -63,11 +86,31 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
                     return jsonify({"error": " ".join(warnings)}), 400
                 return jsonify({"error": "Aucun fichier reçu."}), 400
 
-            lignes = process_lot(document_paths, app.config["INVOICE_TEMPLATES_DIR"])
+            try:
+                lignes = process_lot(
+                    document_paths,
+                    app.config["INVOICE_TEMPLATES_DIR"],
+                    journal=journal,
+                )
+            except Exception as exc:
+                journal.record(
+                    f"EXCEPTION type={type(exc).__name__} message={exc}"
+                )
+                for line in traceback.format_exc().strip().splitlines():
+                    journal.record(f"traceback {line}")
+                return jsonify(
+                    {
+                        "error": (
+                            "Échec technique du traitement du lot. "
+                            "Exportez le journal pour le diagnostic."
+                        )
+                    }
+                ), 500
             return jsonify(
                 {
                     "lignes": [ligne.to_api_dict() for ligne in lignes],
                     "warnings": warnings,
+                    "journal_disponible": not journal.is_empty(),
                 }
             )
         finally:

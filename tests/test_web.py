@@ -1,3 +1,5 @@
+import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -593,3 +595,218 @@ def test_api_export_rejette_type_document_invalide(client):
 
     assert response.status_code == 400
     assert "error" in response.get_json()
+
+
+# --- Journal de diagnostic (#56 / #57 / #58) ---
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+def test_api_journal_vide_retourne_404(client):
+    response = client.get("/api/journal")
+
+    assert response.status_code == 404
+    assert "error" in response.get_json()
+
+
+def test_api_lot_puis_journal_contient_fichier_et_horodatage(client):
+    """Après un Lot, le journal exportable mentionne le fichier traité (#56)."""
+    pdf_path = CORPUS / "Masse 22 Juillet 26.pdf"
+    with pdf_path.open("rb") as fh:
+        lot_response = client.post(
+            "/api/lot",
+            data={"files": (fh, "Masse 22 Juillet 26.pdf")},
+            content_type="multipart/form-data",
+        )
+    assert lot_response.status_code == 200
+
+    response = client.get("/api/journal")
+    assert response.status_code == 200
+    assert "text/plain" in response.content_type
+    assert "attachment" in response.headers.get("Content-Disposition", "")
+    body = response.data.decode("utf-8")
+    assert "Masse 22 Juillet 26.pdf" in body
+    # Horodatage ISO-ish (YYYY-MM-DD)
+    assert re.search(r"\d{4}-\d{2}-\d{2}", body)
+
+
+def test_api_journal_reinitialise_entre_deux_lots(client):
+    """Un nouveau Lot remplace le journal précédent (#56)."""
+    masse = CORPUS / "Masse 22 Juillet 26.pdf"
+    aluplast = CORPUS / "Aluplast 13 Juillet 26.pdf"
+
+    with masse.open("rb") as fh:
+        assert (
+            client.post(
+                "/api/lot",
+                data={"files": (fh, "Masse 22 Juillet 26.pdf")},
+                content_type="multipart/form-data",
+            ).status_code
+            == 200
+        )
+
+    with aluplast.open("rb") as fh:
+        assert (
+            client.post(
+                "/api/lot",
+                data={"files": (fh, "Aluplast 13 Juillet 26.pdf")},
+                content_type="multipart/form-data",
+            ).status_code
+            == 200
+        )
+
+    body = client.get("/api/journal").data.decode("utf-8")
+    assert "Aluplast 13 Juillet 26.pdf" in body
+    assert "Masse 22 Juillet 26.pdf" not in body
+
+
+def test_page_accueil_contient_bouton_export_journal(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert 'id="export-journal"' in html
+    assert "Exporter le journal" in html
+
+
+def test_static_js_exporte_journal_via_api(client):
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "/api/journal" in js
+    assert "export-journal" in js
+    assert "journal" in js.lower()
+    # Indépendant du verrou CSV
+    assert "exportJournal" in js or "export-journal" in js
+
+
+def test_api_journal_lot_ok_contient_diagnostics_pipeline(client):
+    """Lot OK : journal expose source, Template, type, champs, statut (#57)."""
+    pdf_path = CORPUS / "Masse 22 Juillet 26.pdf"
+    with pdf_path.open("rb") as fh:
+        assert (
+            client.post(
+                "/api/lot",
+                data={"files": (fh, "Masse 22 Juillet 26.pdf")},
+                content_type="multipart/form-data",
+            ).status_code
+            == 200
+        )
+
+    body = client.get("/api/journal").data.decode("utf-8")
+    assert "fichier=Masse 22 Juillet 26.pdf" in body
+    assert "source=natif" in body
+    assert "Template=Masse" in body
+    assert "type=FACTURE" in body
+    assert "emetteur=Masse" in body
+    assert "date=22/07/2026" in body
+    assert "montant_ht=751,95" in body
+    assert "statut=OK" in body
+
+
+def test_api_journal_ocr_indique_source_et_raison(client):
+    """Facture OCR : journal marque OCR et statut À vérifier (#57)."""
+    pdf_path = CORPUS / "Altagel 10 Juillet 26.pdf"
+    with pdf_path.open("rb") as fh:
+        assert (
+            client.post(
+                "/api/lot",
+                data={"files": (fh, "Altagel 10 Juillet 26.pdf")},
+                content_type="multipart/form-data",
+            ).status_code
+            == 200
+        )
+
+    body = client.get("/api/journal").data.decode("utf-8")
+    assert "fichier=Altagel 10 Juillet 26.pdf" in body
+    assert "source=OCR" in body
+    assert "statut=A_VERIFIER" in body
+    assert "OCR" in body
+
+
+def test_api_journal_detection_ambigue(tmp_path):
+    """Détection ambiguë explicitement nommée dans le journal (#57)."""
+    templates_dir = tmp_path / "templates"
+    templates_dir.mkdir()
+    shutil.copy(TEMPLATES / "masse.yml", templates_dir / "masse.yml")
+    shutil.copy(TEMPLATES / "aluplast.yml", templates_dir / "aluplast.yml")
+
+    app = create_app(templates_dir=templates_dir)
+    app.config["TESTING"] = True
+    app.config["UPLOAD_FOLDER"] = tmp_path / "uploads"
+    app.config["UPLOAD_FOLDER"].mkdir()
+    local_client = app.test_client()
+
+    fixture = FIXTURES / "detection_ambigue_masse_aluplast.pdf"
+    with fixture.open("rb") as fh:
+        assert (
+            local_client.post(
+                "/api/lot",
+                data={"files": (fh, "detection_ambigue_masse_aluplast.pdf")},
+                content_type="multipart/form-data",
+            ).status_code
+            == 200
+        )
+
+    body = local_client.get("/api/journal").data.decode("utf-8")
+    assert "Détection ambiguë" in body
+    assert "statut=A_VERIFIER" in body
+    assert "emetteur=" in body
+
+
+def test_api_journal_aucun_template(tmp_path):
+    """Aucun Template : journal distingue ce cas (#57)."""
+    templates_dir = tmp_path / "templates"
+    templates_dir.mkdir()
+
+    app = create_app(templates_dir=templates_dir)
+    app.config["TESTING"] = True
+    app.config["UPLOAD_FOLDER"] = tmp_path / "uploads"
+    app.config["UPLOAD_FOLDER"].mkdir()
+    local_client = app.test_client()
+
+    pdf_path = CORPUS / "Masse 22 Juillet 26.pdf"
+    with pdf_path.open("rb") as fh:
+        assert (
+            local_client.post(
+                "/api/lot",
+                data={"files": (fh, "Masse 22 Juillet 26.pdf")},
+                content_type="multipart/form-data",
+            ).status_code
+            == 200
+        )
+
+    body = local_client.get("/api/journal").data.decode("utf-8")
+    assert "aucun Template" in body
+    assert "statut=A_VERIFIER" in body
+    assert '"raison"' not in body  # pas dans le JSON lignes ; journal texte only
+
+
+def test_api_journal_capture_exception_technique(client, monkeypatch):
+    """Exception pendant le Lot → entrée traceback + journal exportable (#58)."""
+    import app.lot as lot_mod
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("ocr_ko_simule")
+
+    monkeypatch.setattr(lot_mod, "extract_document_text", boom)
+
+    pdf_path = CORPUS / "Masse 22 Juillet 26.pdf"
+    with pdf_path.open("rb") as fh:
+        response = client.post(
+            "/api/lot",
+            data={"files": (fh, "Masse 22 Juillet 26.pdf")},
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 500
+    payload = response.get_json()
+    assert "error" in payload
+
+    journal = client.get("/api/journal")
+    assert journal.status_code == 200
+    body = journal.data.decode("utf-8")
+    assert "EXCEPTION" in body or "RuntimeError" in body
+    assert "ocr_ko_simule" in body
+    assert "Traceback" in body or "traceback" in body.lower()

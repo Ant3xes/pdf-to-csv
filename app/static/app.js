@@ -10,6 +10,7 @@
   const avoirsCount = document.getElementById("avoirs-count");
   const issuerGroups = document.getElementById("issuer-groups");
   const exportButton = document.getElementById("export-csv");
+  const exportJournalButton = document.getElementById("export-journal");
   const appShell = document.querySelector(".app-shell");
   const splitHandle = document.getElementById("split-handle");
   const mainPane = document.getElementById("main-pane");
@@ -40,6 +41,8 @@
   const PANE_ZOOM_STEP = 0.1;
   /** État éphémère du Lot en cours (Correction manuelle locale, hors Template). */
   let lotLignes = [];
+  /** Journal de diagnostic disponible côté serveur pour le Lot courant. */
+  let journalDisponible = false;
   /** filename → object URL pour ouvrir le fichier (éphémère, côté navigateur uniquement). */
   const fileUrls = new Map();
   /** filename → File déposé (conservé pour conversion HEIC à l'ouverture). */
@@ -199,7 +202,14 @@
     }
   }
 
+  function syncExportJournalButton() {
+    if (exportJournalButton) {
+      exportJournalButton.disabled = !journalDisponible;
+    }
+  }
+
   function syncExportButton() {
+    syncExportJournalButton();
     if (lotLignes.length === 0) {
       exportButton.disabled = true;
       exportBlockMessage.hidden = true;
@@ -646,6 +656,32 @@
     }
   }
 
+  async function exportJournal() {
+    if (!journalDisponible) {
+      return;
+    }
+    showError("");
+    try {
+      const response = await fetch("/api/journal");
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        showError(payload.error || "Échec de l'export du journal.");
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "journal.txt";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showError("Impossible d'exporter le journal (serveur injoignable).");
+    }
+  }
+
   async function uploadLot(fileList) {
     const files = Array.from(fileList || []);
     if (files.length === 0) {
@@ -669,10 +705,13 @@
       const payload = await response.json();
       if (!response.ok) {
         clearFileUrls();
+        journalDisponible = response.status === 500;
+        syncExportJournalButton();
         showError(payload.error || "Échec du traitement du lot.");
         return;
       }
       const lignes = payload.lignes || [];
+      journalDisponible = Boolean(payload.journal_disponible);
       keepFilesForLignes(lignes);
       renderLignes(lignes);
       const warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
@@ -681,6 +720,8 @@
       }
     } catch (err) {
       clearFileUrls();
+      journalDisponible = false;
+      syncExportJournalButton();
       showError("Impossible de contacter le serveur.");
     } finally {
       setProcessing(false);
@@ -714,6 +755,12 @@
   exportButton.addEventListener("click", () => {
     exportLotCsv();
   });
+
+  if (exportJournalButton) {
+    exportJournalButton.addEventListener("click", () => {
+      exportJournal();
+    });
+  }
 
   if (mainZoomOut && mainZoomIn && mainZoomReset) {
     mainZoomOut.addEventListener("click", () => {

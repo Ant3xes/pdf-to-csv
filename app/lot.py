@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.corrections import corriger_ligne
 from app.extraction import (
@@ -9,9 +10,12 @@ from app.extraction import (
     is_supported_document,
     supported_document_formats_label,
 )
-from app.models import TYPE_AVOIR, TYPE_FACTURE, LigneFacture
+from app.models import STATUT_OK, TYPE_AVOIR, TYPE_FACTURE, LigneFacture, Template
 from app.normalisation import apply_generic_fallback, ascii_fold
 from app.templates_loader import apply_template, load_templates, matching_templates
+
+if TYPE_CHECKING:
+    from app.diagnostics import DiagnosticJournal
 
 # Réexport du contrat public historique (tests / web).
 __all__ = [
@@ -48,9 +52,67 @@ def _classify_document(text: str, filename: str) -> str:
     return TYPE_FACTURE
 
 
+def _template_detection_label(matches: list[Template]) -> str:
+    if len(matches) == 0:
+        return "aucun Template"
+    if len(matches) == 1:
+        return f"Template={matches[0].issuer}"
+    issuers = ", ".join(t.issuer for t in matches)
+    return f"Détection ambiguë ({issuers})"
+
+
+def _raisons_diagnostic(
+    *,
+    from_ocr: bool,
+    match_count: int,
+    ligne: LigneFacture,
+) -> list[str]:
+    if ligne.statut == STATUT_OK:
+        return []
+    reasons: list[str] = []
+    if match_count == 0:
+        reasons.append("aucun Template")
+    elif match_count > 1:
+        reasons.append("Détection ambiguë")
+    if from_ocr:
+        reasons.append("OCR")
+    if not ligne.emetteur:
+        reasons.append("émetteur manquant")
+    if not ligne.date:
+        reasons.append("date manquante ou invalide")
+    if not ligne.montant_ht:
+        reasons.append("montant HT manquant ou invalide")
+    return reasons or ["À vérifier"]
+
+
+def _record_ligne(
+    journal: DiagnosticJournal,
+    *,
+    ligne: LigneFacture,
+    from_ocr: bool,
+    matches: list[Template],
+) -> None:
+    montant = ligne.montant_ht.format_fr() if ligne.montant_ht else ""
+    raisons = _raisons_diagnostic(
+        from_ocr=from_ocr, match_count=len(matches), ligne=ligne
+    )
+    journal.record(
+        f"fichier={ligne.fichier} "
+        f"source={'OCR' if from_ocr else 'natif'} "
+        f"detection={_template_detection_label(matches)} "
+        f"type={ligne.type_document} "
+        f"emetteur={ligne.emetteur or ''} "
+        f"date={ligne.date or ''} "
+        f"montant_ht={montant} "
+        f"statut={ligne.statut} "
+        f"raisons={';'.join(raisons) if raisons else 'OK'}"
+    )
+
+
 def process_lot(
     document_paths: list[Path | str],
     templates_dir: Path | str,
+    journal: DiagnosticJournal | None = None,
 ) -> list[LigneFacture]:
     templates = load_templates(Path(templates_dir))
     lignes: list[LigneFacture] = []
@@ -62,22 +124,26 @@ def process_lot(
         type_document = _classify_document(source.text, path.name)
 
         if len(matches) == 1:
-            lignes.append(
-                apply_template(
-                    source.text,
-                    matches[0],
-                    fichier=path.name,
-                    from_ocr=source.from_ocr,
-                    type_document=type_document,
-                )
+            ligne = apply_template(
+                source.text,
+                matches[0],
+                fichier=path.name,
+                from_ocr=source.from_ocr,
+                type_document=type_document,
             )
         else:
-            lignes.append(
-                apply_generic_fallback(
-                    source.text,
-                    fichier=path.name,
-                    type_document=type_document,
-                )
+            ligne = apply_generic_fallback(
+                source.text,
+                fichier=path.name,
+                type_document=type_document,
+            )
+        lignes.append(ligne)
+        if journal is not None:
+            _record_ligne(
+                journal,
+                ligne=ligne,
+                from_ocr=source.from_ocr,
+                matches=matches,
             )
 
     return lignes

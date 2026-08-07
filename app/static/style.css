@@ -252,7 +252,8 @@ h1 {
   margin: 1.25rem 0 0;
 }
 
-#export-csv {
+#export-csv,
+#export-journal {
   font: inherit;
   padding: 0.55rem 1rem;
   color: #fff;
@@ -262,7 +263,8 @@ h1 {
   cursor: pointer;
 }
 
-#export-csv:disabled {
+#export-csv:disabled,
+#export-journal:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
