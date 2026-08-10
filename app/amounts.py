@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 
 @dataclass(frozen=True)
 class MontantHt:
-    """Montant HT numérique ; le format FR n'apparaît qu'à la sérialisation."""
+    """Montant HT numérique (ADR-0003) ; le format FR n'apparaît qu'à la sérialisation."""
 
     value: Decimal
 
@@ -30,6 +30,8 @@ class MontantHt:
             value = Decimal(cleaned)
         except InvalidOperation:
             return None
+        # amount_sign=negative (Templates Avoir) : force le crédit même si le PDF
+        # affiche un montant positif (CONTEXT.md — Avoir).
         if amount_sign == "negative" and value > 0:
             value = -value
         return cls(value)
@@ -50,11 +52,6 @@ class MontantHt:
 
     def format_fr(self) -> str:
         return f"{self.value:.2f}".replace(".", ",")
-
-    def __add__(self, other: MontantHt) -> MontantHt:
-        if not isinstance(other, MontantHt):
-            return NotImplemented
-        return MontantHt(self.value + other.value)
 
 
 def format_montant_ht_fr(value: Decimal | float | int) -> str:

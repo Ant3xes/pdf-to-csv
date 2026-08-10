@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copie tesseract / pdfinfo / pdftoppm + dylibs Homebrew dans packaging/vendor pour le bundle .app.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 # SPECPATH = dossier packaging/ ; la racine du repo est le parent.
+# onedir + BUNDLE → .app macOS ; vendor OCR embarqué via datas « vendor/ ».
 ROOT = Path(SPECPATH).resolve().parent
 
 a = Analysis(

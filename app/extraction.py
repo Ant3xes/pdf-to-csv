@@ -19,7 +19,7 @@ from app.runtime_paths import get_poppler_path
 
 SUPPORTED_DOCUMENT_SUFFIXES = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".heic"})
 
-# Below this, native text is treated as empty/insufficient → OCR fallback.
+# Sous ce seuil, le texte natif PDF est jugé insuffisant → bascule OCR.
 MIN_NATIVE_CHARS = 50
 OCR_DPI = 200
 OCR_LANG = "fra"
@@ -69,9 +69,8 @@ def _extract_text_from_pdf(pdf_path: Path) -> SourceText:
         native = _extract_native_text(pdf)
 
     if len(native.strip()) >= MIN_NATIVE_CHARS:
-        # Selectable text is usable → native source, even with a full-page
-        # background image (e.g. La Chablisienne). from_ocr only when we
-        # actually fall back to Tesseract (CONTEXT OCR rule).
+        # Texte sélectionnable utilisable → source native (même avec image de fond).
+        # from_ocr=True uniquement si on bascule vraiment sur Tesseract.
         return SourceText(text=native, from_ocr=False)
 
     return SourceText(text=_extract_ocr_text(pdf_path), from_ocr=True)

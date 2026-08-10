@@ -52,7 +52,8 @@ _DATE_NUM = (
 )
 _DATE_TEXTUAL_FR = r"(\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4})"
 
-# Strong labeled date anchors (preferred over bare "le …").
+# Ancres « strong » préférées aux dates nues (« le … ») pour éviter échéances /
+# livraisons. Les motifs proches (édition / emission) couvrent OCR et accents.
 _GENERIC_DATE_STRONG = (
     rf"Date\s+de\s+la\s+facture\s*{_DATE_NUM}",
     rf"Date\s+de\s+facturation\s*:?\s*{_DATE_NUM}",
@@ -96,6 +97,7 @@ _DATE_NEGATIVE_FOLDED = re.compile(
     r"prochaine\s+date|expire|due\s+date)",
 )
 
+# Libellés HT uniquement — le préfixe TTC/TVA est filtré dans generic_amount.
 _GENERIC_AMOUNT_LABELS = (
     rf"Total\s+(?:net\s+)?(?:facture\s+)?H\.?\s*T\.?"
     rf"(?:\s+(?:en\s+)?(?:€|EURO|EUR))?[\s:]*{_AMOUNT_NUM}",
@@ -205,6 +207,7 @@ def generic_amount(text: str) -> MontantHt | None:
     for pattern in _GENERIC_AMOUNT_LABELS:
         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
             label_prefix = text[max(0, match.start() - 30) : match.start()]
+            # Évite de prendre un « Total TTC » / ligne TVA pour du HT (ADR-0003).
             if re.search(r"(?:T\.?\s*T\.?\s*C\.?|TVA|T\.V\.A)\s*$", label_prefix, re.I):
                 continue
             if re.search(r"Total\s+T\.?\s*T\.?\s*C\.?\s*$", label_prefix, re.I):
