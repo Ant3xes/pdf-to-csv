@@ -743,18 +743,15 @@ def test_static_js_filtre_formats_non_supportes(client):
     assert "n'est pas un format exploitable" in js
 
 
-def test_static_js_affiche_raisons_diagnostic(client):
-    """UI affiche des messages métier sous le statut À vérifier (pas de log brut)."""
+def test_static_js_n_affiche_pas_raisons_sous_statut(client):
+    """Les causes de À vérifier ne s'affichent pas dans la colonne statut (journal seulement)."""
     response = client.get("/static/app.js")
 
     assert response.status_code == 200
     js = response.data.decode()
-    assert "raisons_diagnostic" in js
-    assert "statut-raisons" in js
-    assert "messageUtilisateurRaisons" in js
-    assert "RAISON_MESSAGES" in js
-    assert "Document scanné" in js
-    # error_detail reste côté API, pas concaténé dans showError UI
+    assert "statut-raisons" not in js
+    assert "messageUtilisateurRaisons" not in js
+    assert "RAISON_MESSAGES" not in js
     assert "payload.error_detail" not in js
 
 
