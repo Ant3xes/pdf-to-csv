@@ -18,7 +18,6 @@
   const mainPane = document.getElementById("main-pane");
   const previewPane = document.getElementById("preview-pane");
   const mainZoomStage = document.getElementById("main-zoom-stage");
-  const previewZoomStage = document.getElementById("preview-zoom-stage");
   const previewContent = document.getElementById("preview-content");
   const previewPlaceholder = document.getElementById("preview-placeholder");
   const previewFilename = document.getElementById("preview-filename");
@@ -303,17 +302,17 @@
     return Math.min(PANE_ZOOM_MAX, Math.max(PANE_ZOOM_MIN, Number(stepped.toFixed(2))));
   }
 
-  function applyStageZoom(stage, zoom) {
-    if (!stage) {
+  function applyZoomTransform(element, zoom) {
+    if (!element) {
       return;
     }
-    stage.style.transformOrigin = "0 0";
+    element.style.transformOrigin = "0 0";
     if (zoom === 1) {
-      stage.style.transform = "";
-      stage.style.width = "";
+      element.style.transform = "";
+      element.style.width = "";
     } else {
-      stage.style.transform = `scale(${zoom})`;
-      stage.style.width = `${100 / zoom}%`;
+      element.style.transform = `scale(${zoom})`;
+      element.style.width = `${100 / zoom}%`;
     }
   }
 
@@ -327,12 +326,23 @@
   }
 
   function applyMainZoom() {
-    applyStageZoom(mainZoomStage, mainZoom);
+    applyZoomTransform(mainZoomStage, mainZoom);
     syncZoomControls(mainZoom, mainZoomOut, mainZoomIn, mainZoomReset);
   }
 
   function applyPreviewZoom() {
-    applyStageZoom(previewZoomStage, previewZoom);
+    if (!previewContent) {
+      syncZoomControls(previewZoom, previewZoomOut, previewZoomIn, previewZoomReset);
+      return;
+    }
+    // Médias en width:100% : élargir le conteneur (scale+width compensée s'annule).
+    previewContent.style.transform = "";
+    previewContent.style.transformOrigin = "";
+    if (previewZoom === 1) {
+      previewContent.style.width = "";
+    } else {
+      previewContent.style.width = `${previewZoom * 100}%`;
+    }
     syncZoomControls(previewZoom, previewZoomOut, previewZoomIn, previewZoomReset);
   }
 
