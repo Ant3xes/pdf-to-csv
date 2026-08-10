@@ -305,6 +305,178 @@ def test_lot_filet_montants_ht_ambigus_montant_vide():
     assert ligne.statut == "A_VERIFIER"
 
 
+def test_lot_filet_date_facturation_sans_de():
+    """Ancre Date facturation (sans « de ») via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_date_facturation.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "16/07/2026"
+    assert _montant_fr(ligne) == "42,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_facture_du():
+    """Ancre Facture du DATE via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_facture_du.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "01/07/2026"
+    assert _montant_fr(ligne) == "10,50"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_votre_facture_du():
+    """Ancre Votre facture … du DATE via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_votre_facture_du.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "09/07/2026"
+    assert _montant_fr(ligne) == "33,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_facture_ref_du():
+    """Ancre (FACTURE|AVOIR) … du DATE via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_facture_ref_du.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "10/07/2026"
+    assert _montant_fr(ligne) == "12,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_le_colon_date():
+    """Ancre Le : DATE via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_le_colon_date.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "31/07/2026"
+    assert _montant_fr(ligne) == "99,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_invoice_date_et_excl_vat():
+    """Invoice date + Total excl. VAT via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_invoice_date.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "13/07/2026"
+    assert _montant_fr(ligne) == "25,50"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_invoice_date_ignore_due_date():
+    """Due date voisine n'écrase pas Invoice Date (#73)."""
+    lignes = process_lot([FIXTURES / "filet_invoice_vs_due_date.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.date == "01/07/2026"
+    assert _montant_fr(ligne) == "10,00"
+    assert ligne.emetteur is None
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_invoice_date_iso():
+    """Invoice date au format ISO YYYY-MM-DD via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_invoice_date_iso.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "21/07/2026"
+    assert _montant_fr(ligne) == "40,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_date_mois_textuel_ancre_forte():
+    """Date j mois aaaa derrière ancre facture via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_date_mois_textuel.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "03/07/2026"
+    assert _montant_fr(ligne) == "15,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_montant_hors_tva():
+    """Montant Hors TVA retenu, TTC ignoré (#73)."""
+    lignes = process_lot([FIXTURES / "filet_montant_hors_tva.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert ligne.date == "01/07/2026"
+    assert _montant_fr(ligne) == "77,77"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_montant_hors_taxes():
+    """Montant hors taxes via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_montant_hors_taxes.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.emetteur is None
+    assert _montant_fr(ligne) == "55,55"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_total_facture_ht():
+    """Total Facture HT via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_total_facture_ht.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert _montant_fr(ligne) == "18,90"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_total_net_facture_ht():
+    """Total net facture HT via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_total_net_facture_ht.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert _montant_fr(ligne) == "27,40"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_ht_colon():
+    """H.T. : montant via filet, T.T.C. ignoré (#73)."""
+    lignes = process_lot([FIXTURES / "filet_ht_colon.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert _montant_fr(ligne) == "61,10"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_prix_nets():
+    """Prix nets prudent via filet (#73)."""
+    lignes = process_lot([FIXTURES / "filet_prix_nets.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.date == "05/07/2026"
+    assert _montant_fr(ligne) == "44,00"
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_ignore_net_a_payer():
+    """NET A PAYER seul ne préremplit pas le montant HT (#73)."""
+    lignes = process_lot([FIXTURES / "filet_net_a_payer_ignore.pdf"], TEMPLATES)
+    ligne = lignes[0]
+    assert ligne.date == "10/07/2026"
+    assert ligne.montant_ht is None
+    assert ligne.emetteur is None
+    assert ligne.statut == "A_VERIFIER"
+
+
+def test_lot_filet_smoke_corpus2_sans_template_edf_lofoten_poste(tmp_path):
+    """Smoke Corpus_2 sans YAML : familles Hors TVA / excl. VAT / net facture HT (#73)."""
+    lignes = process_lot(
+        [
+            CORPUS_2 / "EDF Electricité 1er Juillet 26.pdf",
+            CORPUS_2 / "Lofoten 13 Juillet 26.pdf",
+            CORPUS_2 / "la Poste 9 Juillet 26.pdf",
+        ],
+        tmp_path,
+    )
+    assert [l.emetteur for l in lignes] == [None, None, None]
+    assert all(l.statut == "A_VERIFIER" for l in lignes)
+    assert lignes[0].date == "01/07/2026"
+    assert _montant_fr(lignes[0]) is not None
+    assert lignes[1].date == "13/07/2026"
+    assert _montant_fr(lignes[1]) is not None
+    assert lignes[2].date == "09/07/2026"
+    assert _montant_fr(lignes[2]) is not None
+
+
 def test_lot_acr_template_ok():
     lignes = process_lot([CORPUS / "ACR 1 Juillet 26.pdf"], TEMPLATES)
     assert len(lignes) == 1
