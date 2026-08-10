@@ -196,7 +196,7 @@ body.is-resizing-split canvas {
 .preview-content img,
 .preview-content .preview-pdf-page {
   height: auto;
-  max-width: 100%;
+  max-width: none;
   object-fit: contain;
 }
 

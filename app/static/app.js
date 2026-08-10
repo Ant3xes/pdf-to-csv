@@ -330,19 +330,33 @@
     syncZoomControls(mainZoom, mainZoomOut, mainZoomIn, mainZoomReset);
   }
 
+  function previewZoomBaseWidth() {
+    const stage = document.getElementById("preview-zoom-stage");
+    const viewport = document.getElementById("preview-zoom-viewport");
+    return Math.max(
+      (stage && stage.clientWidth) || 0,
+      (viewport && viewport.clientWidth) || 0,
+      320,
+    );
+  }
+
   function applyPreviewZoom() {
     if (!previewContent) {
       syncZoomControls(previewZoom, previewZoomOut, previewZoomIn, previewZoomReset);
       return;
     }
-    // Médias en width:100% : élargir le conteneur (scale+width compensée s'annule).
+    previewContent.style.zoom = "";
     previewContent.style.transform = "";
     previewContent.style.transformOrigin = "";
-    if (previewZoom === 1) {
-      previewContent.style.width = "";
-    } else {
-      previewContent.style.width = `${previewZoom * 100}%`;
+    // Mesurer la base à zoom 1 (largeur inline précédente fausse la base).
+    previewContent.style.width = "";
+    if (previewZoom !== 1) {
+      previewContent.style.width = `${previewZoomBaseWidth() * previewZoom}px`;
     }
+    previewContent.querySelectorAll("img, canvas.preview-pdf-page").forEach((media) => {
+      media.style.maxWidth = "none";
+      media.style.width = "100%";
+    });
     syncZoomControls(previewZoom, previewZoomOut, previewZoomIn, previewZoomReset);
   }
 
@@ -1337,6 +1351,7 @@
       if (splitHandle.hasPointerCapture(event.pointerId)) {
         splitHandle.releasePointerCapture(event.pointerId);
       }
+      applyPreviewZoom();
     }
 
     splitHandle.addEventListener("pointerup", endDrag);
@@ -1351,9 +1366,11 @@
       const current = previewPane.getBoundingClientRect().width;
       if (event.key === "ArrowLeft") {
         setPreviewWidth(current + step);
+        applyPreviewZoom();
         event.preventDefault();
       } else if (event.key === "ArrowRight") {
         setPreviewWidth(current - step);
+        applyPreviewZoom();
         event.preventDefault();
       }
     });
