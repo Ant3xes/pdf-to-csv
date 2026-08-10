@@ -316,7 +316,18 @@
   }
 
   function applyPreviewZoom() {
-    applyZoomTransform(previewContent, previewZoom);
+    if (!previewContent) {
+      syncZoomControls(previewZoom, previewZoomOut, previewZoomIn, previewZoomReset);
+      return;
+    }
+    // Médias en width:100% : élargir le conteneur (scale+width compensée s'annule).
+    previewContent.style.transform = "";
+    previewContent.style.transformOrigin = "";
+    if (previewZoom === 1) {
+      previewContent.style.width = "";
+    } else {
+      previewContent.style.width = `${previewZoom * 100}%`;
+    }
     syncZoomControls(previewZoom, previewZoomOut, previewZoomIn, previewZoomReset);
   }
 
