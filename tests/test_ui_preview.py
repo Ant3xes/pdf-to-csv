@@ -9,10 +9,17 @@ from playwright.sync_api import Page, expect
 CORPUS = Path(__file__).resolve().parents[1] / "private_corpus"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 BLOB_SRC = re.compile(r"^blob:")
+PREVIEW_MEDIA = (
+    "#preview-content .preview-pdf, "
+    "#preview-content iframe, "
+    "#preview-content embed, "
+    "#preview-content img"
+)
+PREVIEW_PDF_CANVAS = "#preview-content .preview-pdf canvas"
 
 
 def test_apercu_pdf_dans_panneau_droit(live_server_url, page: Page):
-    """Dépôt PDF → Ouvrir le fichier → aperçu in-app (#50)."""
+    """Dépôt PDF → Ouvrir le fichier → aperçu canvas pdf.js (#50, #71)."""
     page.goto(live_server_url)
     expect(page.locator("#preview-pane")).to_be_visible()
     expect(page.locator("#preview-placeholder")).to_be_visible()
@@ -21,11 +28,8 @@ def test_apercu_pdf_dans_panneau_droit(live_server_url, page: Page):
     page.wait_for_selector(".ouvrir-fichier:not([disabled])")
     page.click(".ouvrir-fichier")
 
-    expect(page.locator("#preview-content iframe, #preview-content embed")).to_be_visible()
-    expect(page.locator("#preview-content iframe, #preview-content embed")).to_have_attribute(
-        "src",
-        BLOB_SRC,
-    )
+    expect(page.locator(PREVIEW_PDF_CANVAS).first).to_be_visible()
+    expect(page.locator("#preview-filename")).to_have_text("Masse 22 Juillet 26.pdf")
     expect(page.locator("tr.ligne-apercu")).to_have_count(1)
     expect(page.locator("#preview-placeholder")).to_be_hidden()
 
@@ -53,23 +57,48 @@ def test_apercu_change_de_ligne(live_server_url, page: Page):
         ],
     )
     page.wait_for_selector(".issuer-group")
+    expect(page.locator(".ouvrir-fichier:not([disabled])")).to_have_count(2)
+
+    page.locator("tr", has_text="Masse 22 Juillet 26.pdf").locator(
+        ".ouvrir-fichier"
+    ).click()
+    expect(page.locator(PREVIEW_PDF_CANVAS).first).to_be_visible()
+    expect(page.locator("#preview-filename")).to_have_text("Masse 22 Juillet 26.pdf")
+
+    page.locator("tr", has_text="scan_sans_texte.png").locator(".ouvrir-fichier").click()
+    second = page.locator("#preview-content img")
+    expect(second).to_be_visible()
+    expect(second).to_have_attribute("src", BLOB_SRC)
+    expect(page.locator("#preview-filename")).to_have_text("scan_sans_texte.png")
+
+
+def test_apercu_pdf_retour_premiere_ligne(live_server_url, page: Page):
+    """Retour sur un PDF déjà ouvert régénère l’aperçu canvas (#71)."""
+    page.goto(live_server_url)
+    page.set_input_files(
+        "#file-input",
+        [
+            CORPUS / "Masse 22 Juillet 26.pdf",
+            CORPUS / "Masse 23 Juillet 26.pdf",
+        ],
+    )
+    page.wait_for_selector(".issuer-group")
     boutons = page.locator(".ouvrir-fichier:not([disabled])")
     expect(boutons).to_have_count(2)
 
     boutons.nth(0).click()
-    first_src = page.locator(
-        "#preview-content iframe, #preview-content embed, #preview-content img"
-    ).get_attribute("src")
-    assert first_src and first_src.startswith("blob:")
+    expect(page.locator("#preview-filename")).to_have_text("Masse 22 Juillet 26.pdf")
+    expect(page.locator(PREVIEW_PDF_CANVAS).first).to_be_visible()
 
     boutons.nth(1).click()
-    second = page.locator(
-        "#preview-content iframe, #preview-content embed, #preview-content img"
-    )
-    expect(second).to_be_visible()
-    second_src = second.get_attribute("src")
-    assert second_src and second_src.startswith("blob:")
-    assert second_src != first_src
+    expect(page.locator("#preview-filename")).to_have_text("Masse 23 Juillet 26.pdf")
+    expect(page.locator(PREVIEW_PDF_CANVAS).first).to_be_visible()
+
+    boutons.nth(0).click()
+    expect(page.locator("#preview-filename")).to_have_text("Masse 22 Juillet 26.pdf")
+    expect(page.locator(PREVIEW_PDF_CANVAS).first).to_be_visible()
+    expect(page.locator("#preview-placeholder")).to_be_hidden()
+    expect(page.locator("tr.ligne-apercu")).to_have_count(1)
 
 
 def test_bouton_nouveau_lot_vide_la_session(live_server_url, page: Page):
@@ -87,11 +116,7 @@ def test_bouton_nouveau_lot_vide_la_session(live_server_url, page: Page):
     )
     page.wait_for_selector(".issuer-group")
     page.click(".ouvrir-fichier:not([disabled])")
-    expect(
-        page.locator(
-            "#preview-content iframe, #preview-content embed, #preview-content img"
-        )
-    ).to_be_visible()
+    expect(page.locator(PREVIEW_MEDIA)).to_be_visible()
     expect(page.locator("#export-journal")).to_be_enabled()
 
     page.click("#reset-lot")
@@ -101,11 +126,7 @@ def test_bouton_nouveau_lot_vide_la_session(live_server_url, page: Page):
     expect(page.locator(".issuer-group")).to_have_count(0)
     expect(page.locator("#totaux-emetteurs")).to_be_hidden()
     expect(page.locator("#preview-placeholder")).to_be_visible()
-    expect(
-        page.locator(
-            "#preview-content iframe, #preview-content embed, #preview-content img"
-        )
-    ).to_have_count(0)
+    expect(page.locator(PREVIEW_MEDIA)).to_have_count(0)
     expect(page.locator("tr.ligne-apercu")).to_have_count(0)
     expect(page.locator("#export-csv")).to_be_disabled()
     expect(page.locator("#export-journal")).to_be_disabled()
@@ -119,10 +140,8 @@ def test_depot_successif_cumule_les_factures(live_server_url, page: Page):
     expect(page.locator("#factures-count")).to_have_text("1")
 
     page.click(".ouvrir-fichier:not([disabled])")
-    preview_src = page.locator(
-        "#preview-content iframe, #preview-content embed, #preview-content img"
-    ).get_attribute("src")
-    assert preview_src and preview_src.startswith("blob:")
+    expect(page.locator(PREVIEW_PDF_CANVAS).first).to_be_visible()
+    expect(page.locator("#preview-filename")).to_have_text("Masse 22 Juillet 26.pdf")
 
     page.set_input_files("#file-input", [CORPUS / "Masse 23 Juillet 26.pdf"])
     page.wait_for_function(
@@ -131,11 +150,7 @@ def test_depot_successif_cumule_les_factures(live_server_url, page: Page):
 
     expect(page.locator("#factures-count")).to_have_text("2")
     expect(page.locator(".ouvrir-fichier:not([disabled])")).to_have_count(2)
-    expect(
-        page.locator(
-            "#preview-content iframe, #preview-content embed, #preview-content img"
-        )
-    ).to_be_visible()
+    expect(page.locator(PREVIEW_PDF_CANVAS).first).to_be_visible()
     expect(page.locator("#preview-placeholder")).to_be_hidden()
     expect(page.locator("tr.ligne-apercu")).to_have_count(1)
 

@@ -134,7 +134,8 @@ body.is-resizing-split {
 }
 
 body.is-resizing-split iframe,
-body.is-resizing-split img {
+body.is-resizing-split img,
+body.is-resizing-split canvas {
   pointer-events: none;
 }
 
@@ -177,7 +178,8 @@ body.is-resizing-split img {
 
 .preview-content iframe,
 .preview-content img,
-.preview-content embed {
+.preview-content embed,
+.preview-content .preview-pdf-page {
   display: block;
   width: 100%;
   border: 1px solid var(--border);
@@ -191,10 +193,17 @@ body.is-resizing-split img {
   min-height: 24rem;
 }
 
-.preview-content img {
+.preview-content img,
+.preview-content .preview-pdf-page {
   height: auto;
   max-width: 100%;
   object-fit: contain;
+}
+
+.preview-content .preview-pdf {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .results-table tr.ligne-apercu {

@@ -54,12 +54,15 @@
   const depositedFiles = new Map();
   /** Fichier actuellement affiché dans le panneau d'aperçu (null si vide). */
   let previewedFilename = null;
+  /** Incrémenté à chaque rendu d’aperçu pour ignorer les assignations src obsolètes. */
+  let previewRenderToken = 0;
   /** Dernier panneau survolé / ciblé pour raccourcis clavier et molette. */
   let activeZoomPane = "main";
   let mainZoom = 1;
   let previewZoom = 1;
 
   let heic2anyLoadPromise = null;
+  let pdfJsLoadPromise = null;
 
   function isHeicFile(file) {
     const lower = file.name.toLowerCase();
@@ -85,6 +88,31 @@
       });
     }
     return heic2anyLoadPromise;
+  }
+
+  function loadPdfJs() {
+    if (typeof pdfjsLib !== "undefined") {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "/static/vendor/pdf.worker.min.js";
+      return Promise.resolve(pdfjsLib);
+    }
+    if (!pdfJsLoadPromise) {
+      pdfJsLoadPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "/static/vendor/pdf.min.js";
+        script.onload = () => {
+          const lib = window.pdfjsLib;
+          if (!lib) {
+            reject(new Error("pdf.js indisponible"));
+            return;
+          }
+          lib.GlobalWorkerOptions.workerSrc = "/static/vendor/pdf.worker.min.js";
+          resolve(lib);
+        };
+        script.onerror = () => reject(new Error("pdf.js indisponible"));
+        document.head.appendChild(script);
+      });
+    }
+    return pdfJsLoadPromise;
   }
 
   async function createHeicPreviewUrl(file) {
@@ -270,6 +298,7 @@
   }
 
   function clearPreview() {
+    previewRenderToken += 1;
     previewedFilename = null;
     previewContent.replaceChildren();
     previewPlaceholder.hidden = false;
@@ -341,21 +370,54 @@
     }
   }
 
+  async function renderPdfPages(filename, file, token) {
+    const pdfjs = await loadPdfJs();
+    if (token !== previewRenderToken) {
+      return;
+    }
+    const data = await file.arrayBuffer();
+    if (token !== previewRenderToken) {
+      return;
+    }
+    const pdf = await pdfjs.getDocument({ data }).promise;
+    if (token !== previewRenderToken) {
+      return;
+    }
+
+    const container = document.createElement("div");
+    container.className = "preview-pdf";
+    container.setAttribute("role", "img");
+    container.setAttribute("aria-label", `Aperçu de ${filename}`);
+    previewContent.replaceChildren(container);
+
+    const containerWidth = Math.max(previewContent.clientWidth || 0, 320);
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+      if (token !== previewRenderToken) {
+        return;
+      }
+      const page = await pdf.getPage(pageNum);
+      const unscaled = page.getViewport({ scale: 1 });
+      const scale = Math.min(2, Math.max(0.75, containerWidth / unscaled.width));
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.className = "preview-pdf-page";
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      container.appendChild(canvas);
+      await page.render({
+        canvasContext: canvas.getContext("2d"),
+        viewport,
+      }).promise;
+    }
+  }
+
   function renderPreviewMedia(filename, url) {
     previewContent.replaceChildren();
-    if (isPdfFilename(filename)) {
-      // <embed> se comporte mieux que <iframe> avec transform:scale sous WKWebView.
-      const embed = document.createElement("embed");
-      embed.src = url;
-      embed.type = "application/pdf";
-      embed.title = `Aperçu de ${filename}`;
-      previewContent.appendChild(embed);
-    } else {
-      const image = document.createElement("img");
-      image.src = url;
-      image.alt = `Aperçu de ${filename}`;
-      previewContent.appendChild(image);
-    }
+    const image = document.createElement("img");
+    image.src = url;
+    image.alt = `Aperçu de ${filename}`;
+    previewContent.appendChild(image);
     previewPlaceholder.hidden = true;
     previewFilename.hidden = false;
     previewFilename.textContent = filename;
@@ -375,7 +437,8 @@
   function appendFiles(files) {
     for (const file of files) {
       depositedFiles.set(file.name, file);
-      if (!isHeicFile(file)) {
+      // Les PDF sont rendus via pdf.js (ArrayBuffer) : pas d'object URL nécessaire.
+      if (!isHeicFile(file) && !isPdfFilename(file.name)) {
         fileUrls.set(file.name, URL.createObjectURL(file));
       }
     }
@@ -429,9 +492,43 @@
     }
   }
 
+  function markPreviewMeta(filename) {
+    previewPlaceholder.hidden = true;
+    previewFilename.hidden = false;
+    previewFilename.textContent = filename;
+    previewedFilename = filename;
+    applyPreviewZoom();
+  }
+
   async function showPreview(filename) {
+    previewRenderToken += 1;
+    const token = previewRenderToken;
+    previewContent.replaceChildren();
+
+    if (isPdfFilename(filename)) {
+      const file = depositedFiles.get(filename);
+      if (!file) {
+        clearPreview();
+        return false;
+      }
+      markPreviewMeta(filename);
+      try {
+        await renderPdfPages(filename, file, token);
+        return token === previewRenderToken;
+      } catch {
+        if (token === previewRenderToken) {
+          clearPreview();
+        }
+        return false;
+      }
+    }
+
     const url = await resolvePreviewUrl(filename);
+    if (token !== previewRenderToken) {
+      return false;
+    }
     if (!url) {
+      clearPreview();
       return false;
     }
     renderPreviewMedia(filename, url);
