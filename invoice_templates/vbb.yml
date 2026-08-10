@@ -1,0 +1,12 @@
+issuer: VBB
+keywords:
+  - VENDEE BIERES BOISSONS
+  - Exemplaire Client
+fields:
+  date: '(?:FACTURE|AVOIR)\s+VTE-\d+\s+du\s+(\d{2}/\d{2}/\d{4})'
+  amount: '(?m)^(\d+[,.]\d{2})\s+\d+[,.]\d{2}(?:\s+D.consignes|\s*$)'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: '.'
+  amount_sign: negative
