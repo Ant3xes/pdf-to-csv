@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo
+
+JOURNAL_TZ = ZoneInfo("Europe/Paris")
 
 ACTION_KINDS = frozenset(
     {
@@ -9,11 +12,22 @@ ACTION_KINDS = frozenset(
         "correction",
         "validation",
         "type_document",
+        "apercu",
         "export_csv",
         "export_journal",
         "nouveau_lot",
     }
 )
+
+
+def format_timestamp(when: datetime | None = None) -> str:
+    """Date et heure locales (Europe/Paris) : YYYY-MM-DD HH:MM:SS."""
+    stamp = when or datetime.now(JOURNAL_TZ)
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=JOURNAL_TZ)
+    else:
+        stamp = stamp.astimezone(JOURNAL_TZ)
+    return stamp.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def format_action_line(action: str, fields: Mapping[str, Any] | None = None) -> str:
@@ -28,9 +42,9 @@ def format_action_line(action: str, fields: Mapping[str, Any] | None = None) -> 
 
 
 class DiagnosticJournal:
-    """Journal ephemere de diagnostic du Lot (session processus)."""
+    """Journal ephemere de session du Lot (diagnostics + actions utilisateur)."""
 
-    def __init__(self, *, max_entries: int = 2000) -> None:
+    def __init__(self, *, max_entries: int = 5000) -> None:
         self._max_entries = max_entries
         self._entries: list[str] = []
 
@@ -41,8 +55,7 @@ class DiagnosticJournal:
         return not self._entries
 
     def record(self, message: str) -> None:
-        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        self._entries.append(f"{stamp} {message}")
+        self._entries.append(f"{format_timestamp()} {message}")
         if len(self._entries) > self._max_entries:
             overflow = len(self._entries) - self._max_entries
             del self._entries[:overflow]

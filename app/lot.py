@@ -101,16 +101,19 @@ def _record_ligne(
 ) -> None:
     montant = ligne.montant_ht.format_fr() if ligne.montant_ht else ""
     raisons = ligne.raisons_diagnostic
-    journal.record(
-        f"fichier={ligne.fichier} "
-        f"source={'OCR' if from_ocr else 'natif'} "
-        f"detection={_template_detection_label(matches)} "
-        f"type={ligne.type_document} "
-        f"emetteur={ligne.emetteur or ''} "
-        f"date={ligne.date or ''} "
-        f"montant_ht={montant} "
-        f"statut={ligne.statut} "
-        f"raisons={';'.join(raisons) if raisons else 'OK'}"
+    journal.record_action(
+        "pipeline",
+        {
+            "fichier": ligne.fichier,
+            "source": "OCR" if from_ocr else "natif",
+            "detection": _template_detection_label(matches),
+            "type": ligne.type_document,
+            "emetteur": ligne.emetteur or "",
+            "date": ligne.date or "",
+            "montant_ht": montant,
+            "statut": ligne.statut,
+            "raisons": ";".join(raisons) if raisons else "OK",
+        },
     )
 
 

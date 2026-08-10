@@ -712,8 +712,9 @@ def test_api_lot_puis_journal_contient_fichier_et_horodatage(client):
     assert "attachment" in response.headers.get("Content-Disposition", "")
     body = response.data.decode("utf-8")
     assert "Masse 22 Juillet 26.pdf" in body
-    # Horodatage ISO-ish (YYYY-MM-DD)
-    assert re.search(r"\d{4}-\d{2}-\d{2}", body)
+    # Horodatage date + heure locales (Europe/Paris)
+    assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", body)
+    assert "action=pipeline" in body
 
 
 def test_api_journal_cumule_deux_lots_sans_clear(client):
@@ -1036,12 +1037,9 @@ def test_api_lot_ligne_a_verifier_expose_raisons_diagnostic(client):
 def test_api_journal_events_enregistre_actions_metier(client):
     """POST /api/journal/events append chaque action métier au journal (#61)."""
     events = [
-        {
-            "action": "depot",
-            "acceptes": "a.pdf",
-            "refuses": "x.exe",
-            "doublons": "a.pdf",
-        },
+        {"action": "depot", "resultat": "accepte", "fichier": "a.pdf"},
+        {"action": "depot", "resultat": "refuse", "fichier": "x.exe"},
+        {"action": "depot", "resultat": "doublon", "fichier": "a.pdf"},
         {
             "action": "correction",
             "fichier": "a.pdf",
@@ -1050,6 +1048,7 @@ def test_api_journal_events_enregistre_actions_metier(client):
         },
         {"action": "validation", "fichier": "a.pdf"},
         {"action": "type_document", "fichier": "a.pdf", "type": "AVOIR"},
+        {"action": "apercu", "fichier": "a.pdf"},
         {
             "action": "export_csv",
             "mode": "detail",
@@ -1068,14 +1067,17 @@ def test_api_journal_events_enregistre_actions_metier(client):
     assert response.status_code == 204
 
     body = client.get("/api/journal").data.decode("utf-8")
-    assert "action=depot" in body
-    assert "acceptes=a.pdf" in body
+    assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} action=depot", body)
+    assert "resultat=accepte" in body
+    assert "fichier=a.pdf" in body
+    assert "resultat=refuse" in body
     assert "action=correction" in body
     assert "champ=montant_ht" in body
     assert "valeur=12,00" in body
     assert "action=validation" in body
     assert "action=type_document" in body
     assert "type=AVOIR" in body
+    assert "action=apercu" in body
     assert "action=export_csv" in body
     assert "mode=detail" in body
     assert "confirm=confirmed" in body
@@ -1127,8 +1129,10 @@ def test_static_js_journalise_actions_utilisateur(client):
     assert 'action: "correction"' in js or 'action:"correction"' in js
     assert 'action: "validation"' in js or 'action:"validation"' in js
     assert 'action: "type_document"' in js or 'action:"type_document"' in js
+    assert 'action: "apercu"' in js or 'action:"apercu"' in js
     assert 'action: "export_csv"' in js or 'action:"export_csv"' in js
     assert 'action: "export_journal"' in js or 'action:"export_journal"' in js
+    assert 'resultat: "accepte"' in js or 'resultat:"accepte"' in js
     # Nouveau lot : clear seul (action nouveau_lot optionnelle côté API)
     # Pas de journalisation du bruit UI
     assert 'action: "zoom"' not in js

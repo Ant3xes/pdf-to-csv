@@ -248,16 +248,20 @@
   }
 
   /**
-   * Enregistre une action métier dans le journal de session (fire-and-forget).
-   * @param {Record<string, string>} fields
+   * Enregistre une ou plusieurs actions métier dans le journal (fire-and-forget).
+   * @param {Record<string, string>|Record<string, string>[]} fieldsOrList
    */
-  function journaliserAction(fields) {
+  function journaliserAction(fieldsOrList) {
+    const events = Array.isArray(fieldsOrList) ? fieldsOrList : [fieldsOrList];
+    if (events.length === 0) {
+      return;
+    }
     journalDisponible = true;
     syncExportJournalButton();
     fetch("/api/journal/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ events: [fields] }),
+      body: JSON.stringify({ events }),
     }).catch(() => {});
   }
 
@@ -498,7 +502,11 @@
       markPreviewMeta(filename);
       try {
         await renderPdfPages(filename, file, token);
-        return token === previewRenderToken;
+        const opened = token === previewRenderToken;
+        if (opened) {
+          journaliserAction({ action: "apercu", fichier: filename });
+        }
+        return opened;
       } catch {
         if (token === previewRenderToken) {
           clearPreview();
@@ -516,6 +524,7 @@
       return false;
     }
     renderPreviewMedia(filename, url);
+    journaliserAction({ action: "apercu", fichier: filename });
     return true;
   }
 
@@ -1044,17 +1053,29 @@
             .map((name) => `Le fichier «${name}» est déjà présent dans le Lot.`)
             .join(" ");
 
-    const depotEvent = { action: "depot" };
-    if (accepted.length > 0) {
-      depotEvent.acceptes = accepted.map((file) => file.name).join(",");
+    const depotEvents = [];
+    for (const file of accepted) {
+      depotEvents.push({
+        action: "depot",
+        resultat: "accepte",
+        fichier: file.name,
+      });
     }
-    if (unsupported.length > 0) {
-      depotEvent.refuses = unsupported.join(",");
+    for (const name of unsupported) {
+      depotEvents.push({
+        action: "depot",
+        resultat: "refuse",
+        fichier: name,
+      });
     }
-    if (duplicates.length > 0) {
-      depotEvent.doublons = [...new Set(duplicates)].join(",");
+    for (const name of [...new Set(duplicates)]) {
+      depotEvents.push({
+        action: "depot",
+        resultat: "doublon",
+        fichier: name,
+      });
     }
-    journaliserAction(depotEvent);
+    journaliserAction(depotEvents);
 
     if (accepted.length === 0) {
       showError(
