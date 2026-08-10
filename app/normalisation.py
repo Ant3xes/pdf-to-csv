@@ -42,24 +42,42 @@ GENERIC_DATE_FORMATS = [
     "%d-%m-%y",
     "%d.%m.%Y",
     "%d.%m.%y",
+    "%Y-%m-%d",
 ]
 
 # Séparateurs de milliers : point/espace (EU) ou virgule/espace (US).
 _AMOUNT_NUM = r"(-?\d[\d.\s]*,\d{2}|-?\d[\d,\s]*\.\d{2})"
-_DATE_NUM = r"(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})"
+_DATE_NUM = (
+    r"(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}|\d{4}-\d{2}-\d{2})"
+)
+_DATE_TEXTUAL_FR = r"(\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4})"
 
 # Strong labeled date anchors (preferred over bare "le …").
 _GENERIC_DATE_STRONG = (
     rf"Date\s+de\s+la\s+facture\s*{_DATE_NUM}",
     rf"Date\s+de\s+facturation\s*:?\s*{_DATE_NUM}",
+    rf"Date\s+facturation\s*:?\s*{_DATE_NUM}",
     rf"Date\s+d['’]édition\s*:?\s*{_DATE_NUM}",
     rf"Date\s+d['’]edition\s*:?\s*{_DATE_NUM}",
     rf"Date\s+facture\s*\*?\s*:?\s*{_DATE_NUM}",
     rf"Date\s+d['’]émission\s*:?\s*{_DATE_NUM}",
     rf"Date\s+d['’]emission\s*:?\s*{_DATE_NUM}",
     rf"Date\s*:?\s*{_DATE_NUM}",
+    rf"Invoice\s*Date\s*:?\s*{_DATE_NUM}",
     rf"Facture\s+N[°o]\s*[\w./\-]*\s+du\s+{_DATE_NUM}",
     rf"N[°o]\s+\d+\s+du\s+{_DATE_NUM}",
+    rf"Facture\s+du\s+{_DATE_NUM}",
+    rf"Votre\s+facture\s+.*?du\s+{_DATE_NUM}",
+    rf"(?:FACTURE|AVOIR)\s+\S+\s+du\s+{_DATE_NUM}",
+    rf"Le\s*:\s*{_DATE_NUM}",
+)
+
+# Textual FR dates (j mois aaaa) only behind strong document anchors.
+_GENERIC_DATE_TEXTUAL_STRONG = (
+    rf"(?:VOTRE\s+)?FACTURE\s+DU\s+{_DATE_TEXTUAL_FR}",
+    rf"AVOIR\s+du\s+{_DATE_TEXTUAL_FR}",
+    rf"Date\s+(?:de\s+(?:la\s+)?facture|facture|d['’]émission|d['’]emission|"
+    rf"de\s+facturation|facturation)\s*:?\s*{_DATE_TEXTUAL_FR}",
 )
 
 _GENERIC_DATE_WEAK = (
@@ -75,13 +93,19 @@ _GENERIC_DATE_MONTH_FIRST = (
 _DATE_NEGATIVE_FOLDED = re.compile(
     r"(?:echeanc|payable|au\s+plus\s+tard|periode|"
     r"avant\s+le|expedition|livraison|reference|"
-    r"prochaine\s+date|expire)",
+    r"prochaine\s+date|expire|due\s+date)",
 )
 
 _GENERIC_AMOUNT_LABELS = (
-    rf"Total\s+H\.?\s*T\.?(?:\s+(?:en\s+)?(?:€|EURO|EUR))?[\s:]*{_AMOUNT_NUM}",
+    rf"Total\s+(?:net\s+)?(?:facture\s+)?H\.?\s*T\.?"
+    rf"(?:\s+(?:en\s+)?(?:€|EURO|EUR))?[\s:]*{_AMOUNT_NUM}",
     rf"Net\s+H\.?\s*T\.?\s*{_AMOUNT_NUM}",
     rf"Montant\s+H\.?\s*T\.?\s*:?\s*{_AMOUNT_NUM}",
+    rf"Montant\s+Hors\s+TVA\s*{_AMOUNT_NUM}",
+    rf"Montant\s+hors\s+taxes\s*{_AMOUNT_NUM}",
+    rf"(?<![A-Za-z])H\.?\s*T\.?\s*:\s*{_AMOUNT_NUM}",
+    rf"Total\s+excl\.?\s*VAT\s*{_AMOUNT_NUM}",
+    rf"Prix\s+nets\s*{_AMOUNT_NUM}",
 )
 
 
@@ -132,8 +156,9 @@ def _month_from_french_name(name: str) -> str | None:
     return None
 
 
-def _context_window(text: str, start: int, end: int, radius: int = 40) -> str:
-    return text[max(0, start - radius) : min(len(text), end + radius)]
+def _label_window(text: str, start: int, radius: int = 40) -> str:
+    """Libellé avant le match + court aperçu (ex. « Due Date »)."""
+    return text[max(0, start - radius) : min(len(text), start + 12)]
 
 
 def _has_negative_date_context(window: str) -> bool:
@@ -151,8 +176,7 @@ def _collect_dated_matches(text: str, patterns: tuple[str, ...]) -> list[str]:
     candidates: list[str] = []
     for pattern in patterns:
         for match in re.finditer(pattern, text, flags=re.IGNORECASE):
-            window = _context_window(text, match.start(), match.end())
-            if _has_negative_date_context(window):
+            if _has_negative_date_context(_label_window(text, match.start())):
                 continue
             normalized = normalize_date(match.group(1), GENERIC_DATE_FORMATS)
             if normalized:
@@ -162,6 +186,7 @@ def _collect_dated_matches(text: str, patterns: tuple[str, ...]) -> list[str]:
 
 def generic_date(text: str) -> str | None:
     strong = _collect_dated_matches(text, _GENERIC_DATE_STRONG)
+    strong.extend(_collect_dated_matches(text, _GENERIC_DATE_TEXTUAL_STRONG))
     month_first = re.search(_GENERIC_DATE_MONTH_FIRST, text, flags=re.IGNORECASE)
     if month_first:
         month = _month_from_french_name(month_first.group(1))
