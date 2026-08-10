@@ -269,7 +269,7 @@ h1 {
   margin: 1.25rem 0 0;
 }
 
-#export-csv,
+.export-csv-btn,
 #reset-lot {
   font: inherit;
   padding: 0.55rem 1rem;
@@ -286,7 +286,7 @@ h1 {
   border: 1px solid var(--border);
 }
 
-#export-csv:disabled {
+.export-csv-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }

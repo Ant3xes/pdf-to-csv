@@ -59,13 +59,13 @@
     if (aVerifierCount === 0) {
       return null;
     }
-    const label = aVerifierCount === 1 ? "facture" : "factures";
+    const label = aVerifierCount === 1 ? "facture est" : "factures sont";
     return (
-      "Attention : " +
+      "Toutes les factures ne sont pas vérifiées : " +
       aVerifierCount +
       " " +
       label +
-      " encore à vérifier. L'export contient ces lignes avec le statut A_VERIFIER."
+      " encore à vérifier.\n\nVoulez-vous exporter le CSV quand même ?"
     );
   }
 

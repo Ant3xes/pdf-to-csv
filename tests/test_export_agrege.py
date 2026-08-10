@@ -97,9 +97,39 @@ def test_export_csv_agrege_format_fr():
 
     assert csv == (
         "\ufeff"
-        "emetteur;montant_ht;nb_documents\n"
-        "Altagel;382,26;1\n"
-        "Masse;793,31;1\n"
+        "emetteur;montant_ht;nb_documents;fichier;date;statut;type\n"
+        "Altagel;382,26;1;;;;\n"
+        "Masse;793,31;1;;;;\n"
+    )
+
+
+def test_export_csv_agrege_sans_emetteur_en_detail():
+    csv = export_csv_agrege(
+        [
+            _ligne(emetteur="Masse", montant_ht="100,00", fichier="masse.pdf"),
+            _ligne(
+                emetteur=None,
+                montant_ht="50,00",
+                fichier="inconnu.pdf",
+                date="02/02/2026",
+                statut="A_VERIFIER",
+            ),
+            _ligne(
+                emetteur="  ",
+                montant_ht="25,00",
+                fichier="autre.pdf",
+                date="03/03/2026",
+                statut="OK",
+            ),
+        ]
+    )
+
+    assert csv == (
+        "\ufeff"
+        "emetteur;montant_ht;nb_documents;fichier;date;statut;type\n"
+        ";50,00;1;inconnu.pdf;02/02/2026;A_VERIFIER;FACTURE\n"
+        ";25,00;1;autre.pdf;03/03/2026;OK;FACTURE\n"
+        "Masse;100,00;1;;;;\n"
     )
 
 

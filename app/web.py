@@ -8,7 +8,7 @@ from pathlib import Path
 from flask import Flask, Response, current_app, jsonify, render_template, request
 
 from app.amounts import MontantHt
-from app.csv_export import export_csv, valider_export
+from app.csv_export import export_csv, export_csv_agrege, valider_export
 from app.diagnostics import DiagnosticJournal
 from app.lot import is_supported_document, process_lot, supported_document_formats_label
 from app.models import TYPES_DOCUMENT, LigneFacture
@@ -125,6 +125,10 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
         if not isinstance(raw_lignes, list) or len(raw_lignes) == 0:
             return jsonify({"error": "Aucune ligne à exporter."}), 400
 
+        mode = payload.get("mode", "detail")
+        if mode not in ("detail", "agrege"):
+            return jsonify({"error": "Mode d'export invalide."}), 400
+
         lignes: list[LigneFacture] = []
         for raw in raw_lignes:
             if (
@@ -152,12 +156,17 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
         if erreur:
             return jsonify({"error": erreur}), 400
 
-        csv_body = export_csv(lignes)
+        if mode == "agrege":
+            csv_body = export_csv_agrege(lignes)
+            filename = "lot-groupe.csv"
+        else:
+            csv_body = export_csv(lignes)
+            filename = "lot-detail.csv"
         return Response(
             csv_body,
             mimetype="text/csv; charset=utf-8",
             headers={
-                "Content-Disposition": 'attachment; filename="lot.csv"',
+                "Content-Disposition": f'attachment; filename="{filename}"',
             },
         )
 

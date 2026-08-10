@@ -326,7 +326,7 @@ def test_api_export_csv_format_fr_avec_corrections(client):
     assert response.status_code == 200
     assert "text/csv" in response.content_type
     assert "attachment" in response.headers.get("Content-Disposition", "")
-    assert 'filename="lot.csv"' in response.headers.get("Content-Disposition", "")
+    assert 'filename="lot-detail.csv"' in response.headers.get("Content-Disposition", "")
     body = response.data.decode()
     assert body == (
         "\ufeff"
@@ -481,12 +481,81 @@ def test_api_export_rejette_lot_vide(client):
     assert "error" in payload
 
 
+def test_api_export_agrege_avec_sans_emetteur_en_detail(client):
+    """Mode agrege : totaux par Émetteur nommé, détail ligne à ligne sans Émetteur."""
+    response = client.post(
+        "/api/export",
+        json={
+            "mode": "agrege",
+            "lignes": [
+                {
+                    "fichier": "Masse 22 Juillet 26.pdf",
+                    "emetteur": "Masse",
+                    "date": "22/07/2026",
+                    "montant_ht": "751,95",
+                    "statut": "OK",
+                    "type_document": "FACTURE",
+                },
+                {
+                    "fichier": "Masse 15 Juillet 26.pdf",
+                    "emetteur": "Masse",
+                    "date": "15/07/2026",
+                    "montant_ht": "203,29",
+                    "statut": "OK",
+                    "type_document": "FACTURE",
+                },
+                {
+                    "fichier": "inconnu.pdf",
+                    "emetteur": None,
+                    "date": "01/08/2026",
+                    "montant_ht": "12,50",
+                    "statut": "A_VERIFIER",
+                    "type_document": "FACTURE",
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert 'filename="lot-groupe.csv"' in response.headers.get("Content-Disposition", "")
+    assert response.data.decode() == (
+        "\ufeff"
+        "emetteur;montant_ht;nb_documents;fichier;date;statut;type\n"
+        ";12,50;1;inconnu.pdf;01/08/2026;A_VERIFIER;FACTURE\n"
+        "Masse;955,24;2;;;;\n"
+    )
+
+
+def test_api_export_mode_invalide(client):
+    response = client.post(
+        "/api/export",
+        json={
+            "mode": "pdf",
+            "lignes": [
+                {
+                    "fichier": "a.pdf",
+                    "emetteur": "Masse",
+                    "date": "01/01/2026",
+                    "montant_ht": "1,00",
+                    "statut": "OK",
+                    "type_document": "FACTURE",
+                }
+            ],
+        },
+    )
+    assert response.status_code == 400
+    assert "mode" in response.get_json()["error"].lower()
+
+
 def test_page_accueil_contient_bouton_export(client):
     response = client.get("/")
 
     assert response.status_code == 200
     html = response.data.decode()
-    assert 'id="export-csv"' in html
+    assert 'id="export-csv-detail"' in html
+    assert 'id="export-csv-agrege"' in html
+    assert "Exporter détail" in html
+    assert "Exporter groupé" in html
 
 
 def test_static_js_exporte_lot_courant_via_api(client):
@@ -497,9 +566,12 @@ def test_static_js_exporte_lot_courant_via_api(client):
     js = response.data.decode()
     assert "/api/export" in js
     assert "lotLignes" in js
-    assert "export-csv" in js
+    assert "export-csv-detail" in js
+    assert "export-csv-agrege" in js
     assert "type_document" in js
-    assert "lot.csv" in js
+    assert "lot-detail.csv" in js
+    assert "lot-groupe.csv" in js
+    assert 'mode: exportMode' in js
     assert "changerTypeDocument" in js
     assert "issuer-groups" in js
     assert "issuer-type-heading" in js
@@ -728,8 +800,10 @@ def test_static_js_exporte_journal_via_api(client):
     assert "export-journal" in js
     assert "exportJournal" in js
     assert "saveJournalText" in js
+    assert "saveTextFile" in js
     assert "save_text_file" in js
     assert "showSaveFilePicker" in js
+    assert "window.confirm" in js
     # Texte en mémoire, pas de navigation vers le journal comme page
     assert "response.text()" in js
     assert 'link.href = "/api/journal"' not in js
@@ -758,14 +832,15 @@ def test_static_js_n_affiche_pas_raisons_sous_statut(client):
     assert "payload.error_detail" not in js
 
 
-def test_lot_grouping_blocage_export_synthetique(client):
+def test_lot_grouping_confirmation_export_a_verifier(client):
     response = client.get("/static/lot_grouping.js")
 
     assert response.status_code == 200
     js = response.data.decode()
-    assert "encore à vérifier." in js
+    assert "messageAvertissementExport" in js
+    assert "pas vérifiées" in js
     assert "aVerifierCount" in js
-    assert "encore à vérifier —" not in js
+    assert "Export impossible" not in js
 
 
 def test_launcher_expose_save_text_file_api():
@@ -774,9 +849,12 @@ def test_launcher_expose_save_text_file_api():
     import inspect
 
     assert hasattr(DesktopApi, "save_text_file")
-    source = inspect.getsource(run_desktop_app)
-    assert "DesktopApi" in source
-    assert "js_api" in source
+    source = inspect.getsource(DesktopApi.save_text_file)
+    assert "FileDialog" in source
+    assert "SAVE" in source
+    launcher_source = inspect.getsource(run_desktop_app)
+    assert "DesktopApi" in launcher_source
+    assert "js_api" in launcher_source
 
 
 def test_api_journal_lot_ok_contient_diagnostics_pipeline(client):
