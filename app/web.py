@@ -150,6 +150,7 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
 
     @app.post("/api/export")
     def api_export():
+        # La vérité runtime à l'export est l'état client (corrections UI locales).
         payload = request.get_json(silent=True) or {}
         raw_lignes = payload.get("lignes")
         if not isinstance(raw_lignes, list) or len(raw_lignes) == 0:

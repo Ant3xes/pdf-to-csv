@@ -133,7 +133,6 @@ body.is-resizing-split {
   user-select: none;
 }
 
-body.is-resizing-split iframe,
 body.is-resizing-split img,
 body.is-resizing-split canvas {
   pointer-events: none;
@@ -176,28 +175,16 @@ body.is-resizing-split canvas {
   margin-top: 0.75rem;
 }
 
-.preview-content iframe,
 .preview-content img,
-.preview-content embed,
 .preview-content .preview-pdf-page {
   display: block;
   width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.preview-content iframe,
-.preview-content embed {
-  height: min(70vh, 40rem);
-  min-height: 24rem;
-}
-
-.preview-content img,
-.preview-content .preview-pdf-page {
   height: auto;
   max-width: none;
   object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
 }
 
 .preview-content .preview-pdf {

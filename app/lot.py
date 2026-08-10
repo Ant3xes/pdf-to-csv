@@ -49,7 +49,7 @@ def _matches_any(text: str, patterns: tuple[str, ...], *, ignore_case: bool = Tr
 
 
 def _classify_document(text: str, filename: str) -> str:
-    """FACTURE ou AVOIR. En cas de doute → FACTURE (sauf AVOIR dans le titre / nom)."""
+    """FACTURE ou AVOIR. En cas de doute → FACTURE (CONTEXT.md — jamais Avoir par défaut)."""
     if _matches_any(ascii_fold(filename), _AVOIR_MARKERS_FILENAME):
         return TYPE_AVOIR
     if _matches_any(text, _AVOIR_MARKERS_TEXT_CASE_SENSITIVE, ignore_case=False):
@@ -74,6 +74,7 @@ def raisons_diagnostic_pour(
     match_count: int,
     ligne: LigneFacture,
 ) -> tuple[str, ...]:
+    # Miroir des déclencheurs « À vérifier » (CONTEXT.md) — affiché en UI seulement.
     if ligne.statut == STATUT_OK:
         return ()
     reasons: list[str] = []
@@ -117,49 +118,55 @@ def _record_ligne(
     )
 
 
+def _traiter_document(
+    path: Path,
+    templates: list[Template],
+    journal: DiagnosticJournal | None,
+) -> LigneFacture:
+    source = extract_document_text(path)
+    matches = matching_templates(source.text, templates)
+    type_document = _classify_document(source.text, path.name)
+
+    if len(matches) == 1:
+        ligne = apply_template(
+            source.text,
+            matches[0],
+            fichier=path.name,
+            from_ocr=source.from_ocr,
+            type_document=type_document,
+        )
+    else:
+        # 0 match ou détection ambiguë (>1) → filet générique, jamais d'Émetteur.
+        ligne = apply_generic_fallback(
+            source.text,
+            fichier=path.name,
+            type_document=type_document,
+        )
+    ligne = replace(
+        ligne,
+        raisons_diagnostic=raisons_diagnostic_pour(
+            from_ocr=source.from_ocr,
+            match_count=len(matches),
+            ligne=ligne,
+        ),
+    )
+    if journal is not None:
+        _record_ligne(
+            journal,
+            ligne=ligne,
+            from_ocr=source.from_ocr,
+            matches=matches,
+        )
+    return ligne
+
+
 def process_lot(
     document_paths: list[Path | str],
     templates_dir: Path | str,
     journal: DiagnosticJournal | None = None,
 ) -> list[LigneFacture]:
     templates = load_templates(Path(templates_dir))
-    lignes: list[LigneFacture] = []
-
-    for document_path in document_paths:
-        path = Path(document_path)
-        source = extract_document_text(path)
-        matches = matching_templates(source.text, templates)
-        type_document = _classify_document(source.text, path.name)
-
-        if len(matches) == 1:
-            ligne = apply_template(
-                source.text,
-                matches[0],
-                fichier=path.name,
-                from_ocr=source.from_ocr,
-                type_document=type_document,
-            )
-        else:
-            ligne = apply_generic_fallback(
-                source.text,
-                fichier=path.name,
-                type_document=type_document,
-            )
-        ligne = replace(
-            ligne,
-            raisons_diagnostic=raisons_diagnostic_pour(
-                from_ocr=source.from_ocr,
-                match_count=len(matches),
-                ligne=ligne,
-            ),
-        )
-        lignes.append(ligne)
-        if journal is not None:
-            _record_ligne(
-                journal,
-                ligne=ligne,
-                from_ocr=source.from_ocr,
-                matches=matches,
-            )
-
-    return lignes
+    return [
+        _traiter_document(Path(document_path), templates, journal)
+        for document_path in document_paths
+    ]

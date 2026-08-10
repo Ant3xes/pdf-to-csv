@@ -6,7 +6,7 @@ from decimal import Decimal
 from io import StringIO
 
 from app.amounts import format_montant_ht_fr
-from app.models import TYPE_FACTURE, LigneFacture
+from app.models import STATUT_A_VERIFIER, STATUT_OK, TYPE_FACTURE, LigneFacture
 
 _COLUMNS_AGREGE = (
     "emetteur",
@@ -30,7 +30,7 @@ def valider_export(lignes: list[LigneFacture]) -> str | None:
     if not lignes:
         return "Aucune ligne à exporter."
     for ligne in lignes:
-        if ligne.statut not in ("OK", "A_VERIFIER"):
+        if ligne.statut not in (STATUT_OK, STATUT_A_VERIFIER):
             return "Export impossible : statut de facture invalide."
     return None
 
@@ -39,20 +39,23 @@ def _a_un_emetteur(ligne: LigneFacture) -> bool:
     return bool((ligne.emetteur or "").strip())
 
 
-def _sort_detail(lignes: list[LigneFacture]) -> list[LigneFacture]:
+def sort_facture_avant_avoir(lignes: list[LigneFacture]) -> list[LigneFacture]:
+    """FACTURE avant AVOIR à l'export (ordre stable UI / Excel)."""
     return sorted(
         lignes,
         key=lambda ligne: 0 if ligne.type_document == TYPE_FACTURE else 1,
     )
 
 
-def _montant_cell(ligne: LigneFacture) -> str:
+def montant_cell(ligne: LigneFacture) -> str:
     if ligne.montant_ht is None:
         return ""
     return ligne.montant_ht.format_fr()
 
 
 def agreger_par_emetteur(lignes: list[LigneFacture]) -> list[TotalEmetteur]:
+    # Les Avoirs portent un montant HT négatif : ils diminuent le total net
+    # de leur Émetteur (CONTEXT.md — Avoir).
     totals: dict[str, tuple[Decimal, int]] = {}
     for ligne in lignes:
         emetteur = ligne.emetteur.strip() if ligne.emetteur else ""
@@ -73,7 +76,10 @@ def agreger_par_emetteur(lignes: list[LigneFacture]) -> list[TotalEmetteur]:
 
 
 def export_csv_agrege(lignes: list[LigneFacture]) -> str:
-    """Agrège par Émetteur nommé ; les Factures sans Émetteur restent en détail."""
+    """Agrège par Émetteur nommé ; les lignes sans Émetteur restent en détail.
+
+    Le tri FACTURE avant AVOIR ne s'applique qu'aux lignes détail (sans Émetteur).
+    """
     sans_emetteur = [ligne for ligne in lignes if not _a_un_emetteur(ligne)]
     avec_emetteur = [ligne for ligne in lignes if _a_un_emetteur(ligne)]
     totaux = agreger_par_emetteur(avec_emetteur)
@@ -86,11 +92,11 @@ def export_csv_agrege(lignes: list[LigneFacture]) -> str:
         lineterminator="\n",
     )
     writer.writeheader()
-    for ligne in _sort_detail(sans_emetteur):
+    for ligne in sort_facture_avant_avoir(sans_emetteur):
         writer.writerow(
             {
                 "emetteur": "",
-                "montant_ht": _montant_cell(ligne),
+                "montant_ht": montant_cell(ligne),
                 "nb_documents": "1",
                 "fichier": ligne.fichier,
                 "date": ligne.date or "",

@@ -85,7 +85,6 @@
     EMETTEUR_MANQUANT,
     cleEmetteur,
     parseMontantHt,
-    formaterMontantHt,
     agregerParEmetteur,
     messageAvertissementExport,
     grouperLignesParEmetteur,

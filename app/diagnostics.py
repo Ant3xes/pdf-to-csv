@@ -18,6 +18,7 @@ ACTION_KINDS = frozenset(
         "nouveau_lot",
     }
 )
+# Contrat UI → /api/journal/events. Les lignes « pipeline » sont côté serveur.
 
 
 def format_timestamp(when: datetime | None = None) -> str:
