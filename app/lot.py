@@ -29,27 +29,32 @@ __all__ = [
 
 # Marqueurs documentaires uniquement — pas le verbe « avoir » ni les CGV
 # (« ni à un avoir ni… », « reconnaît avoir connaissance… »).
-_AVOIR_MARKERS_TEXT = (
+_AVOIR_MARKERS_TEXT_CASE_SENSITIVE = (
     r"(?m)^AVOIR\b",
+    r"(?m)^CREDIT\b",
+)
+_AVOIR_MARKERS_TEXT_IGNORECASE = (
     r"\bAVOIR\s+du\b",
     r"\bAVOIR\s+n[°o]\b",
     r"\bvotre\s+avoir\b",
     r"note\s+de\s+cr[eé]dit",
     r"r[eé]capitulatif\s+de\s+votre\s+avoir",
-    r"(?m)^CREDIT\b",
 )
 _AVOIR_MARKERS_FILENAME = (r"\bavoir\b",)
 
 
-def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
-    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+def _matches_any(text: str, patterns: tuple[str, ...], *, ignore_case: bool = True) -> bool:
+    flags = re.IGNORECASE if ignore_case else 0
+    return any(re.search(pattern, text, flags=flags) for pattern in patterns)
 
 
 def _classify_document(text: str, filename: str) -> str:
     """FACTURE ou AVOIR. En cas de doute → FACTURE (sauf AVOIR dans le titre / nom)."""
     if _matches_any(ascii_fold(filename), _AVOIR_MARKERS_FILENAME):
         return TYPE_AVOIR
-    if _matches_any(text, _AVOIR_MARKERS_TEXT):
+    if _matches_any(text, _AVOIR_MARKERS_TEXT_CASE_SENSITIVE, ignore_case=False):
+        return TYPE_AVOIR
+    if _matches_any(text, _AVOIR_MARKERS_TEXT_IGNORECASE):
         return TYPE_AVOIR
     return TYPE_FACTURE
 

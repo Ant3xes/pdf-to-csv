@@ -1,0 +1,11 @@
+issuer: Compagnie des Desserts
+keywords:
+  - compagniedesdesserts.com
+  - COMPAGNIE DES DESSERTS
+fields:
+  date: 'Facture\s+(\d{2}/\d{2}/\d{4})'
+  amount: 'H\.T\.\s*:\s*([\d\s]+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: ','

@@ -1,0 +1,11 @@
+issuer: Inexweb
+keywords:
+  - moncompte.inextenso.fr
+  - In Extenso
+fields:
+  date: 'Le\s*:\s*(\d{2}/\d{2}/\d{4})'
+  amount: 'Total H\.T\.\s+(\d+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: ','

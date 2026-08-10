@@ -1,0 +1,11 @@
+issuer: Maison Vito
+keywords:
+  - MAISON VITO
+  - vitodistribution.f
+fields:
+  date: 'DATE:\s*(\d{2}/\d{2}/\d{4})'
+  amount: 'TOTALH\.T\.\(Horsdroits\)[^\d]*(\d+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: ','
