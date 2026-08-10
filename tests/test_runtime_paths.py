@@ -7,7 +7,12 @@ from pathlib import Path
 import pytest
 
 from app.lot import process_lot
-from app.runtime_paths import RuntimePaths, configure_runtime_paths, resolve_runtime_paths
+from app.runtime_paths import (
+    REQUIRED_POPPLER_BINARIES,
+    RuntimePaths,
+    configure_runtime_paths,
+    resolve_runtime_paths,
+)
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 TEMPLATES = Path(__file__).resolve().parents[1] / "invoice_templates"
@@ -45,7 +50,8 @@ def _write_bundle_layout(root: Path) -> None:
     bin_dir.mkdir(parents=True)
     tessdata_dir.mkdir(parents=True)
     (bin_dir / "tesseract").touch()
-    (bin_dir / "pdftoppm").touch()
+    for name in REQUIRED_POPPLER_BINARIES:
+        (bin_dir / name).touch()
     (tessdata_dir / "fra.traineddata").touch()
 
 
@@ -65,6 +71,19 @@ def test_resolve_packaged_layout_with_simulated_bundle(tmp_path: Path):
     assert paths.tesseract_cmd == str(tmp_path / "vendor" / "bin" / "tesseract")
     assert paths.poppler_path == str(tmp_path / "vendor" / "bin")
     assert paths.tessdata_prefix == str(tmp_path / "vendor" / "tessdata")
+    for name in REQUIRED_POPPLER_BINARIES:
+        assert (tmp_path / "vendor" / "bin" / name).is_file()
+
+
+def test_stage_vendor_script_embeds_required_poppler_binaries():
+    """pdf2image exige pdfinfo + pdftoppm dans le bundle macOS."""
+    script = (Path(__file__).resolve().parents[1] / "scripts" / "stage-vendor.sh").read_text(
+        encoding="utf-8"
+    )
+    for name in REQUIRED_POPPLER_BINARIES:
+        assert f"copy_binary {name}" in script, (
+            f"stage-vendor.sh doit embarquer {name} (pdf2image)"
+        )
 
 
 def test_configure_runtime_paths_applies_tesseract_and_tessdata(tmp_path: Path):

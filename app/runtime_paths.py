@@ -9,6 +9,8 @@ import pytesseract
 
 VENDOR_BIN = Path("vendor") / "bin"
 VENDOR_ROOT = Path("vendor")
+# pdf2image appelle pdfinfo puis pdftoppm dans ce répertoire.
+REQUIRED_POPPLER_BINARIES = ("pdfinfo", "pdftoppm")
 
 
 @dataclass(frozen=True)
