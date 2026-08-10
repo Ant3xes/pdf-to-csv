@@ -9,7 +9,7 @@ from flask import Flask, Response, current_app, jsonify, render_template, reques
 
 from app.amounts import MontantHt
 from app.csv_export import export_csv, export_csv_agrege, valider_export
-from app.diagnostics import DiagnosticJournal
+from app.diagnostics import ACTION_KINDS, DiagnosticJournal
 from app.lot import is_supported_document, process_lot, supported_document_formats_label
 from app.models import TYPES_DOCUMENT, LigneFacture
 
@@ -50,6 +50,37 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
             },
         )
 
+    @app.post("/api/journal/reset")
+    def api_journal_reset():
+        _journal().clear()
+        return Response(status=204)
+
+    @app.post("/api/journal/events")
+    def api_journal_events():
+        payload = request.get_json(silent=True) or {}
+        raw_events = payload.get("events")
+        if not isinstance(raw_events, list) or len(raw_events) == 0:
+            return jsonify({"error": "Aucun événement à enregistrer."}), 400
+
+        parsed: list[tuple[str, dict]] = []
+        for raw in raw_events:
+            if not isinstance(raw, dict) or "action" not in raw:
+                return jsonify({"error": "Événement de journal invalide."}), 400
+            action = str(raw["action"])
+            if action not in ACTION_KINDS:
+                return jsonify({"error": f"Action inconnue : {action}."}), 400
+            fields = {
+                key: value
+                for key, value in raw.items()
+                if key != "action" and value is not None
+            }
+            parsed.append((action, fields))
+
+        journal = _journal()
+        for action, fields in parsed:
+            journal.record_action(action, fields)
+        return Response(status=204)
+
     @app.post("/api/lot")
     def api_lot():
         uploads = request.files.getlist("files")
@@ -62,7 +93,6 @@ def create_app(*, templates_dir: Path | str | None = None) -> Flask:
 
         try:
             journal = _journal()
-            journal.clear()
 
             document_paths: list[Path] = []
             warnings: list[str] = []

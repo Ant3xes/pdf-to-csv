@@ -247,6 +247,20 @@
     }
   }
 
+  /**
+   * Enregistre une action métier dans le journal de session (fire-and-forget).
+   * @param {Record<string, string>} fields
+   */
+  function journaliserAction(fields) {
+    journalDisponible = true;
+    syncExportJournalButton();
+    fetch("/api/journal/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ events: [fields] }),
+    }).catch(() => {});
+  }
+
   function syncExportButton() {
     syncExportJournalButton();
     const disabled = lotLignes.length === 0;
@@ -517,12 +531,30 @@
     };
   }
 
+  function journaliserCorrection(index, champ) {
+    const ligne = lotLignes[index];
+    if (!ligne) {
+      return;
+    }
+    journaliserAction({
+      action: "correction",
+      fichier: ligne.fichier,
+      champ,
+      valeur: ligne[champ] == null ? "" : String(ligne[champ]),
+    });
+  }
+
   function changerTypeDocument(index, typeDocument) {
     const ligne = lotLignes[index];
     if (!ligne || (typeDocument !== TYPE_FACTURE && typeDocument !== TYPE_AVOIR)) {
       return;
     }
     lotLignes[index] = { ...ligne, type_document: typeDocument };
+    journaliserAction({
+      action: "type_document",
+      fichier: ligne.fichier,
+      type: typeDocument,
+    });
     renderLignes(lotLignes);
   }
 
@@ -539,6 +571,10 @@
       return;
     }
     lotLignes[index] = { ...ligne, statut: "OK", raisons_diagnostic: [] };
+    journaliserAction({
+      action: "validation",
+      fichier: ligne.fichier,
+    });
     renderLignes(lotLignes);
   }
 
@@ -576,11 +612,17 @@
             validerBtn.disabled = !champsRemplis(lotLignes[index]);
           }
         });
-        if (key === "emetteur") {
-          input.addEventListener("blur", () => {
+        input.addEventListener("focus", () => {
+          input.dataset.journalBaseline = input.value;
+        });
+        input.addEventListener("blur", () => {
+          if (input.value !== input.dataset.journalBaseline) {
+            journaliserCorrection(index, key);
+          }
+          if (key === "emetteur") {
             renderLignes(lotLignes);
-          });
-        }
+          }
+        });
         td.appendChild(input);
       } else {
         td.textContent = displayValue(ligne[key]);
@@ -746,6 +788,7 @@
   function resetLot() {
     lotGeneration += 1;
     clearFileUrls();
+    fetch("/api/journal/reset", { method: "POST" }).catch(() => {});
     journalDisponible = false;
     renderLignes([]);
     showError("");
@@ -760,12 +803,19 @@
     }
     const exportMode = mode === "agrege" ? "agrege" : "detail";
     const avertissement = LotGrouping.messageAvertissementExport(lotLignes);
+    let confirmStatus = null;
     if (avertissement) {
       if (!window.confirm(avertissement)) {
         exportBlockMessage.hidden = true;
         exportBlockMessage.textContent = "";
+        journaliserAction({
+          action: "export_csv",
+          mode: exportMode,
+          confirm: "cancelled",
+        });
         return;
       }
+      confirmStatus = "confirmed";
       exportBlockMessage.textContent =
         "Export confirmé alors que des factures sont encore à vérifier.";
       exportBlockMessage.hidden = false;
@@ -774,6 +824,10 @@
       exportBlockMessage.textContent = "";
     }
     showError("");
+    const baseEvent = { action: "export_csv", mode: exportMode };
+    if (confirmStatus) {
+      baseEvent.confirm = confirmStatus;
+    }
     try {
       const response = await fetch("/api/export", {
         method: "POST",
@@ -782,7 +836,9 @@
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        showError(payload.error || "Échec de l'export CSV.");
+        const message = payload.error || "Échec de l'export CSV.";
+        showError(message);
+        journaliserAction({ ...baseEvent, save: "echec", message });
         return;
       }
       const text = await response.text();
@@ -795,6 +851,11 @@
         mimeType: "text/csv;charset=utf-8",
         desktopFileTypes: ["CSV (*.csv)", "Tous les fichiers (*.*)"],
       });
+      journaliserAction({
+        ...baseEvent,
+        save:
+          saved === "ok" ? "ok" : saved === "cancelled" ? "cancelled" : "echec",
+      });
       if (saved === "cancelled") {
         return;
       }
@@ -803,6 +864,11 @@
       }
     } catch (err) {
       showError("Impossible de contacter le serveur.");
+      journaliserAction({
+        ...baseEvent,
+        save: "echec",
+        message: "serveur injoignable",
+      });
     }
   }
 
@@ -815,11 +881,22 @@
       const response = await fetch("/api/journal");
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        showError(payload.error || "Échec de l'export du journal.");
+        const message = payload.error || "Échec de l'export du journal.";
+        showError(message);
+        journaliserAction({
+          action: "export_journal",
+          save: "echec",
+          message,
+        });
         return;
       }
       const text = await response.text();
       const saved = await saveJournalText(text);
+      journaliserAction({
+        action: "export_journal",
+        save:
+          saved === "ok" ? "ok" : saved === "cancelled" ? "cancelled" : "echec",
+      });
       if (saved === "cancelled") {
         return;
       }
@@ -828,6 +905,11 @@
       }
     } catch (err) {
       showError("Impossible d'exporter le journal (serveur injoignable).");
+      journaliserAction({
+        action: "export_journal",
+        save: "echec",
+        message: "serveur injoignable",
+      });
     }
   }
 
@@ -961,6 +1043,18 @@
         : [...new Set(duplicates)]
             .map((name) => `Le fichier «${name}» est déjà présent dans le Lot.`)
             .join(" ");
+
+    const depotEvent = { action: "depot" };
+    if (accepted.length > 0) {
+      depotEvent.acceptes = accepted.map((file) => file.name).join(",");
+    }
+    if (unsupported.length > 0) {
+      depotEvent.refuses = unsupported.join(",");
+    }
+    if (duplicates.length > 0) {
+      depotEvent.doublons = [...new Set(duplicates)].join(",");
+    }
+    journaliserAction(depotEvent);
 
     if (accepted.length === 0) {
       showError(
