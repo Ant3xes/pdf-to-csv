@@ -97,9 +97,39 @@ def test_export_csv_agrege_format_fr():
 
     assert csv == (
         "\ufeff"
-        "emetteur;montant_ht;nb_documents\n"
-        "Altagel;382,26;1\n"
-        "Masse;793,31;1\n"
+        "emetteur;montant_ht;nb_documents;fichier;date;statut;type\n"
+        "Altagel;382,26;1;;;;\n"
+        "Masse;793,31;1;;;;\n"
+    )
+
+
+def test_export_csv_agrege_sans_emetteur_en_detail():
+    csv = export_csv_agrege(
+        [
+            _ligne(emetteur="Masse", montant_ht="100,00", fichier="masse.pdf"),
+            _ligne(
+                emetteur=None,
+                montant_ht="50,00",
+                fichier="inconnu.pdf",
+                date="02/02/2026",
+                statut="A_VERIFIER",
+            ),
+            _ligne(
+                emetteur="  ",
+                montant_ht="25,00",
+                fichier="autre.pdf",
+                date="03/03/2026",
+                statut="OK",
+            ),
+        ]
+    )
+
+    assert csv == (
+        "\ufeff"
+        "emetteur;montant_ht;nb_documents;fichier;date;statut;type\n"
+        ";50,00;1;inconnu.pdf;02/02/2026;A_VERIFIER;FACTURE\n"
+        ";25,00;1;autre.pdf;03/03/2026;OK;FACTURE\n"
+        "Masse;100,00;1;;;;\n"
     )
 
 
@@ -112,18 +142,12 @@ def test_valider_export_rejette_lot_vide():
     assert valider_export([]) == "Aucune ligne à exporter."
 
 
-def test_valider_export_rejette_emetteur_manquant():
-    erreur = valider_export([_ligne(emetteur=None)])
-
-    assert erreur is not None
-    assert "émetteur" in erreur.lower()
+def test_valider_export_accepte_emetteur_manquant():
+    assert valider_export([_ligne(emetteur=None)]) is None
 
 
-def test_valider_export_rejette_a_verifier():
-    erreur = valider_export([_ligne(statut="A_VERIFIER")])
-
-    assert erreur is not None
-    assert "vérifier" in erreur.lower()
+def test_valider_export_accepte_a_verifier():
+    assert valider_export([_ligne(statut="A_VERIFIER")]) is None
 
 
 def test_valider_export_rejette_statut_invalide():
@@ -133,10 +157,9 @@ def test_valider_export_rejette_statut_invalide():
     assert "statut" in erreur.lower()
 
 
-def test_valider_export_rejette_ok_sans_date_ou_montant():
-    assert valider_export([_ligne(date=None)]) is not None
-    assert valider_export([_ligne(montant_ht="")]) is not None
-    assert "montant" in (valider_export([_ligne(montant_ht=None)]) or "").lower()
+def test_valider_export_accepte_sans_date_ou_montant():
+    assert valider_export([_ligne(date=None)]) is None
+    assert valider_export([_ligne(montant_ht=None)]) is None
 
 
 def test_valider_export_accepte_lot_ok():

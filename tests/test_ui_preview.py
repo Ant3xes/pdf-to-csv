@@ -128,7 +128,7 @@ def test_bouton_nouveau_lot_vide_la_session(live_server_url, page: Page):
     expect(page.locator("#preview-placeholder")).to_be_visible()
     expect(page.locator(PREVIEW_MEDIA)).to_have_count(0)
     expect(page.locator("tr.ligne-apercu")).to_have_count(0)
-    expect(page.locator("#export-csv")).to_be_disabled()
+    expect(page.locator("#export-csv-detail")).to_be_disabled()
     expect(page.locator("#export-journal")).to_be_disabled()
 
 

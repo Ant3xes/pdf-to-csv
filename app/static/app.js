@@ -9,7 +9,8 @@
   const facturesCount = document.getElementById("factures-count");
   const avoirsCount = document.getElementById("avoirs-count");
   const issuerGroups = document.getElementById("issuer-groups");
-  const exportButton = document.getElementById("export-csv");
+  const exportDetailButton = document.getElementById("export-csv-detail");
+  const exportAgregeButton = document.getElementById("export-csv-agrege");
   const exportJournalButton = document.getElementById("export-journal");
   const resetLotButton = document.getElementById("reset-lot");
   const appShell = document.querySelector(".app-shell");
@@ -247,18 +248,14 @@
 
   function syncExportButton() {
     syncExportJournalButton();
-    if (lotLignes.length === 0) {
-      exportButton.disabled = true;
-      exportBlockMessage.hidden = true;
-      exportBlockMessage.textContent = "";
-      return;
+    const disabled = lotLignes.length === 0;
+    if (exportDetailButton) {
+      exportDetailButton.disabled = disabled;
     }
-    const raison = LotGrouping.raisonExportBloque(lotLignes);
-    exportButton.disabled = raison != null;
-    if (raison) {
-      exportBlockMessage.textContent = raison;
-      exportBlockMessage.hidden = false;
-    } else {
+    if (exportAgregeButton) {
+      exportAgregeButton.disabled = disabled;
+    }
+    if (disabled) {
       exportBlockMessage.hidden = true;
       exportBlockMessage.textContent = "";
     }
@@ -767,32 +764,53 @@
     syncExportJournalButton();
   }
 
-  async function exportLotCsv() {
-    const raison = LotGrouping.raisonExportBloque(lotLignes);
-    if (lotLignes.length === 0 || raison) {
+  async function exportLotCsv(mode) {
+    if (lotLignes.length === 0) {
       return;
+    }
+    const exportMode = mode === "agrege" ? "agrege" : "detail";
+    const avertissement = LotGrouping.messageAvertissementExport(lotLignes);
+    if (avertissement) {
+      if (!window.confirm(avertissement)) {
+        exportBlockMessage.hidden = true;
+        exportBlockMessage.textContent = "";
+        return;
+      }
+      exportBlockMessage.textContent =
+        "Export confirmé alors que des factures sont encore à vérifier.";
+      exportBlockMessage.hidden = false;
+    } else {
+      exportBlockMessage.hidden = true;
+      exportBlockMessage.textContent = "";
     }
     showError("");
     try {
       const response = await fetch("/api/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lignes: lotLignes }),
+        body: JSON.stringify({ lignes: lotLignes, mode: exportMode }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         showError(payload.error || "Échec de l'export CSV.");
         return;
       }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "lot.csv";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      const text = await response.text();
+      const suggestedName =
+        exportMode === "agrege" ? "lot-groupe.csv" : "lot-detail.csv";
+      const saved = await saveTextFile(text, {
+        suggestedName,
+        description: "CSV",
+        accept: { "text/csv": [".csv"] },
+        mimeType: "text/csv;charset=utf-8",
+        desktopFileTypes: ["CSV (*.csv)", "Tous les fichiers (*.*)"],
+      });
+      if (saved === "cancelled") {
+        return;
+      }
+      if (saved === false) {
+        showError("Impossible d'enregistrer le CSV.");
+      }
     } catch (err) {
       showError("Impossible de contacter le serveur.");
     }
@@ -824,14 +842,27 @@
   }
 
   /**
-   * Enregistre le journal sans l'afficher dans l'UI.
+   * Propose un emplacement d'enregistrement (desktop / File System Access / fallback).
    * @returns {Promise<"ok"|"cancelled"|false>}
    */
-  async function saveJournalText(text) {
-    const suggestedName = "journal.txt";
+  async function saveTextFile(text, options) {
+    const suggestedName = (options && options.suggestedName) || "export.txt";
+    const description = (options && options.description) || "Fichier texte";
+    const accept = (options && options.accept) || { "text/plain": [".txt", ".log"] };
+    const mimeType = (options && options.mimeType) || "text/plain;charset=utf-8";
+    const desktopFileTypes =
+      (options && options.desktopFileTypes) || [
+        "Fichiers texte (*.txt;*.log)",
+        "Tous les fichiers (*.*)",
+      ];
+
     const api = window.pywebview && window.pywebview.api;
     if (api && typeof api.save_text_file === "function") {
-      const result = await api.save_text_file(suggestedName, text);
+      const result = await api.save_text_file(
+        suggestedName,
+        text,
+        desktopFileTypes
+      );
       if (result && result.cancelled) {
         return "cancelled";
       }
@@ -846,8 +877,8 @@
           suggestedName,
           types: [
             {
-              description: "Journal",
-              accept: { "text/plain": [".txt", ".log"] },
+              description,
+              accept,
             },
           ],
         });
@@ -862,8 +893,8 @@
         return false;
       }
     }
-    // Fallback navigateur : téléchargement sans navigation
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    // Fallback navigateur : dialogue de téléchargement du navigateur
+    const blob = new Blob([text], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -873,6 +904,23 @@
     link.remove();
     URL.revokeObjectURL(url);
     return "ok";
+  }
+
+  /**
+   * Enregistre le journal sans l'afficher dans l'UI.
+   * @returns {Promise<"ok"|"cancelled"|false>}
+   */
+  async function saveJournalText(text) {
+    return saveTextFile(text, {
+      suggestedName: "journal.txt",
+      description: "Journal",
+      accept: { "text/plain": [".txt", ".log"] },
+      mimeType: "text/plain;charset=utf-8",
+      desktopFileTypes: [
+        "Fichiers texte (*.txt;*.log)",
+        "Tous les fichiers (*.*)",
+      ],
+    });
   }
 
   async function uploadLot(fileList) {
@@ -1019,9 +1067,16 @@
     uploadLot(fileInput.files);
   });
 
-  exportButton.addEventListener("click", () => {
-    exportLotCsv();
-  });
+  if (exportDetailButton) {
+    exportDetailButton.addEventListener("click", () => {
+      exportLotCsv("detail");
+    });
+  }
+  if (exportAgregeButton) {
+    exportAgregeButton.addEventListener("click", () => {
+      exportLotCsv("agrege");
+    });
+  }
 
   if (exportJournalButton) {
     exportJournalButton.addEventListener("click", () => {

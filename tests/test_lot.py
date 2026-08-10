@@ -728,8 +728,8 @@ def test_correction_manuelle_refletee_dans_export_sans_modifier_templates():
 
     assert export_csv([corrigee]) == (
         "\ufeff"
-        "emetteur;montant_ht;nb_documents\n"
-        "Masse corrigé;1,23;1\n"
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse corrigé;01/01/2026;1,23;OK;FACTURE\n"
     )
     assert {p.name: p.read_bytes() for p in TEMPLATES.glob("*.yml")} == templates_before
 
@@ -868,8 +868,8 @@ def test_correction_manuelle_partielle_ne_touche_que_les_champs_fournis():
 
     assert export_csv([corrigee]) == (
         "\ufeff"
-        "emetteur;montant_ht;nb_documents\n"
-        "Masse;999,99;1\n"
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        f"{corrigee.fichier};{corrigee.emetteur};{corrigee.date};999,99;OK;FACTURE\n"
     )
 
 
@@ -906,7 +906,12 @@ def test_correction_manuelle_type_refletee_dans_export():
     lignes = process_lot([CORPUS / "Masse 22 Juillet 26.pdf"], TEMPLATES)
     corrigee = corriger_ligne(lignes[0], type_document=TYPE_AVOIR)
     csv = export_csv([corrigee])
-    assert csv == "\ufeffemetteur;montant_ht;nb_documents\nMasse;751,95;1\n"
+    assert csv == (
+        "\ufeff"
+        f"fichier;emetteur;date;montant_ht;statut;type\n"
+        f"{corrigee.fichier};{corrigee.emetteur};{corrigee.date};"
+        f"{corrigee.montant_ht.format_fr()};OK;AVOIR\n"
+    )
 
 
 def test_lot_vbb_factures_et_avoir_meme_template():

@@ -3,7 +3,7 @@ from app.csv_export import export_csv
 from app.models import TYPE_AVOIR, TYPE_FACTURE, LigneFacture
 
 
-def test_export_csv_format_excel_fr():
+def test_export_csv_detail_format_excel_fr():
     csv = export_csv(
         [
             LigneFacture(
@@ -19,7 +19,7 @@ def test_export_csv_format_excel_fr():
                 emetteur="Altagel",
                 date="10/07/2026",
                 montant_ht=MontantHt.parse_fr("382,26"),
-                statut="OK",
+                statut="A_VERIFIER",
                 type_document=TYPE_FACTURE,
             ),
         ]
@@ -27,17 +27,17 @@ def test_export_csv_format_excel_fr():
 
     assert csv == (
         "\ufeff"
-        "emetteur;montant_ht;nb_documents\n"
-        "Altagel;382,26;1\n"
-        "Masse;793,31;1\n"
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;793,31;OK;FACTURE\n"
+        "Altagel 10 Juillet 26.pdf;Altagel;10/07/2026;382,26;A_VERIFIER;FACTURE\n"
     )
 
 
-def test_export_csv_total_net_facture_et_avoir():
+def test_export_csv_facture_avant_avoir_et_champs_vides():
     csv = export_csv(
         [
             LigneFacture(
-                fichier="Hennequin AVOIR 10 Juillet 26.pdf",
+                fichier="avoir.pdf",
                 emetteur="Hennequin",
                 date="10/07/2026",
                 montant_ht=MontantHt.parse_fr("-1424,78"),
@@ -45,11 +45,11 @@ def test_export_csv_total_net_facture_et_avoir():
                 type_document=TYPE_AVOIR,
             ),
             LigneFacture(
-                fichier="Masse 22 Juillet 26.pdf",
-                emetteur="Masse",
-                date="22/07/2026",
-                montant_ht=MontantHt.parse_fr("793,31"),
-                statut="OK",
+                fichier="incomplet.pdf",
+                emetteur=None,
+                date=None,
+                montant_ht=None,
+                statut="A_VERIFIER",
                 type_document=TYPE_FACTURE,
             ),
         ]
@@ -57,6 +57,6 @@ def test_export_csv_total_net_facture_et_avoir():
 
     assert csv.startswith("\ufeff")
     rows = csv.lstrip("\ufeff").strip().split("\n")
-    assert rows[0] == "emetteur;montant_ht;nb_documents"
-    assert rows[1] == "Hennequin;-1424,78;1"
-    assert rows[2] == "Masse;793,31;1"
+    assert rows[0] == "fichier;emetteur;date;montant_ht;statut;type"
+    assert rows[1] == "incomplet.pdf;;;;A_VERIFIER;FACTURE"
+    assert rows[2] == "avoir.pdf;Hennequin;10/07/2026;-1424,78;OK;AVOIR"

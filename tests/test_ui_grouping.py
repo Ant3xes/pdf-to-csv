@@ -14,6 +14,12 @@ def browser_context_args(browser_context_args):
     return {**browser_context_args, "accept_downloads": True}
 
 
+@pytest.fixture(autouse=True)
+def _force_download_fallback_for_csv(page: Page):
+    """Les tests UI utilisent le fallback <a download> (pas le file picker natif)."""
+    page.add_init_script("delete window.showSaveFilePicker;")
+
+
 def test_totaux_et_groupes_apres_depot_masse(live_server_url, page: Page):
     page.goto(live_server_url)
     page.set_input_files(
@@ -33,34 +39,64 @@ def test_totaux_et_groupes_apres_depot_masse(live_server_url, page: Page):
     expect(page.locator(".issuer-group")).to_have_count(1)
     expect(page.locator(".issuer-group-title")).to_contain_text("Masse")
     expect(page.locator(".issuer-type-heading")).to_contain_text("Factures (3)")
-    expect(page.locator("#export-csv")).to_be_enabled()
+    expect(page.locator("#export-csv-detail")).to_be_enabled()
 
 
-def test_export_bloque_si_a_verifier(live_server_url, page: Page):
+def test_export_autorise_si_a_verifier_avec_confirmation(live_server_url, page: Page):
     page.goto(live_server_url)
     page.set_input_files("#file-input", [FIXTURES / "scan_sans_texte.png"])
     page.wait_for_selector(".issuer-group")
 
-    expect(page.locator("#export-csv")).to_be_disabled()
+    expect(page.locator("#export-csv-detail")).to_be_enabled()
+    expect(page.locator(".issuer-group tr.ligne-a-verifier")).to_have_count(1)
+
+    dialogs = []
+
+    def _handle_dialog(dialog):
+        dialogs.append({"type": dialog.type, "message": dialog.message})
+        dialog.accept()
+
+    page.on("dialog", _handle_dialog)
+
+    with page.expect_download() as download_info:
+        page.click("#export-csv-detail")
+    content = download_info.value.path().read_text(encoding="utf-8-sig")
+    assert content.startswith("fichier;emetteur;date;montant_ht;statut;type\n")
+    assert "A_VERIFIER" in content
+    assert dialogs and dialogs[0]["type"] == "confirm"
+    assert "pas vérifiées" in dialogs[0]["message"].lower() or "à vérifier" in dialogs[0][
+        "message"
+    ].lower()
     expect(page.locator("#export-block-message")).to_be_visible()
     expect(page.locator("#export-block-message")).to_contain_text("à vérifier")
-    expect(page.locator(".issuer-group tr.ligne-a-verifier")).to_have_count(1)
+
+
+def test_export_annule_si_confirmation_refusee(live_server_url, page: Page):
+    page.goto(live_server_url)
+    page.set_input_files("#file-input", [FIXTURES / "scan_sans_texte.png"])
+    page.wait_for_selector("#export-csv-detail:not([disabled])")
+
+    page.on("dialog", lambda dialog: dialog.dismiss())
+    page.click("#export-csv-detail")
+    page.wait_for_timeout(300)
+    expect(page.locator("#export-block-message")).to_be_hidden()
 
 
 def test_export_reussi_apres_validation_ligne(live_server_url, page: Page):
     page.goto(live_server_url)
     page.set_input_files("#file-input", [FIXTURES / "scan_sans_texte.png"])
-    page.wait_for_selector("#export-csv[disabled]")
-    expect(page.locator("#export-block-message")).to_contain_text("à vérifier")
+    page.wait_for_selector("#export-csv-detail:not([disabled])")
 
     page.click(".valider-ligne")
-    expect(page.locator("#export-csv")).to_be_enabled()
-    expect(page.locator("#export-block-message")).to_be_hidden()
+    expect(page.locator("#export-csv-detail")).to_be_enabled()
 
     with page.expect_download() as download_info:
-        page.click("#export-csv")
+        page.click("#export-csv-detail")
     content = download_info.value.path().read_text(encoding="utf-8-sig")
-    assert content == "emetteur;montant_ht;nb_documents\nAltagel;99,50;1\n"
+    assert content == (
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "scan_sans_texte.png;Altagel;15/03/2026;99,50;OK;FACTURE\n"
+    )
 
 
 def test_ligne_incomplete_et_box_indiquent_les_champs_manquants(live_server_url, page: Page):
@@ -113,10 +149,43 @@ def test_un_emetteur_affiche_factures_et_avoirs_separes(live_server_url, page: P
 def test_export_reussi_apres_lot_ok(live_server_url, page: Page):
     page.goto(live_server_url)
     page.set_input_files("#file-input", [CORPUS / "Masse 22 Juillet 26.pdf"])
-    page.wait_for_selector("#export-csv:not([disabled])")
+    page.wait_for_selector("#export-csv-detail:not([disabled])")
 
     with page.expect_download() as download_info:
-        page.click("#export-csv")
+        page.click("#export-csv-detail")
     download = download_info.value
     content = download.path().read_text(encoding="utf-8-sig")
-    assert content == "emetteur;montant_ht;nb_documents\nMasse;751,95;1\n"
+    assert content == (
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;751,95;OK;FACTURE\n"
+    )
+
+
+def test_export_agrege_sans_emetteur_en_detail(live_server_url, page: Page):
+    page.goto(live_server_url)
+    page.set_input_files(
+        "#file-input",
+        [
+            CORPUS / "Masse 22 Juillet 26.pdf",
+            FIXTURES / "rien_extractible.pdf",
+        ],
+    )
+    page.wait_for_selector("#export-csv-agrege:not([disabled])")
+
+    # rien_extractible n'a pas d'émetteur ; Masse en a un
+    expect(page.locator(".issuer-group-title").first).to_contain_text("sans émetteur")
+
+    dialogs = []
+    page.on(
+        "dialog",
+        lambda dialog: (dialogs.append(dialog.message), dialog.accept()),
+    )
+
+    with page.expect_download() as download_info:
+        page.click("#export-csv-agrege")
+    content = download_info.value.path().read_text(encoding="utf-8-sig")
+    rows = content.strip().split("\n")
+    assert rows[0] == "emetteur;montant_ht;nb_documents;fichier;date;statut;type"
+    assert any(row.startswith(";") and "rien_extractible.pdf" in row for row in rows[1:])
+    assert any(row.startswith("Masse;") for row in rows[1:])
+    assert dialogs  # A_VERIFIER sur rien_extractible

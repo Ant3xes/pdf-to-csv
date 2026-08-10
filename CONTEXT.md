@@ -8,7 +8,7 @@ Application locale qui convertit des factures PDF multi-fournisseurs en un CSV e
 Correspond toujours exactement à un fichier déposé par l'utilisateur (PDF ou image JPG/PNG/HEIC) : 1 fichier = 1 facture = 1 ligne dans l'interface (détail éditable). Jamais plusieurs factures distinctes dans un même fichier, jamais une facture répartie sur plusieurs fichiers. Les documents internes au PDF (bons de livraison, pages multiples) ne créent jamais de lignes supplémentaires. Un **Avoir** est une facture au sens du pipeline (même règle 1 fichier = 1 ligne affichée).
 
 **Avoir**:
-Document de crédit émis par un **Fournisseur** (remboursement, correction). Traité comme une **Facture** dans le pipeline (même extraction, même statut), mais identifié et présenté distinctement dans l'interface via le champ `type` (`AVOIR`). Le montant HT d'un avoir représente le crédit (pas une facture « positive » ordinaire). À l'export CSV, les Avoirs contribuent au total net de leur **Émetteur** (montants négatifs additionnés aux Factures). Classification : marqueurs documentaires (titre / nom de fichier « AVOIR », « votre avoir », etc.) — en cas de doute, défaut **Facture**, jamais Avoir par défaut.
+Document de crédit émis par un **Fournisseur** (remboursement, correction). Traité comme une **Facture** dans le pipeline (même extraction, même statut), mais identifié et présenté distinctement dans l'interface via le champ `type` (`AVOIR`). Le montant HT d'un avoir représente le crédit (pas une facture « positive » ordinaire). À l'export CSV détail, les Avoirs apparaissent comme des lignes distinctes (`type=AVOIR`, montants HT négatifs). Dans l'interface, ils contribuent au total net affiché de leur **Émetteur**. Classification : marqueurs documentaires (titre / nom de fichier « AVOIR », « votre avoir », etc.) — en cas de doute, défaut **Facture**, jamais Avoir par défaut.
 _Avoid_: Traiter l'avoir comme un type hors pipeline, ou l'exclure silencieusement de l'export. Classer en Avoir sur le simple verbe « avoir » ou une mention CGV.
 
 **Émetteur**:
@@ -21,7 +21,7 @@ L'entité identifiée par les mots-clés de détection d'un template. Relation s
 Fichier YAML associant un **Fournisseur** (issuer + mots-clés de détection) à des règles d'extraction (regex) pour les champs `date` et `amount` uniquement. Le champ `amount` extrait le **montant HT** (hors taxes), jamais le TTC. Ajouter un fournisseur ne doit nécessiter que l'ajout d'un fichier template, sans toucher au code.
 
 **Statut**:
-Valeur binaire portée par chaque facture : `OK` ou `À vérifier` (encodée `A_VERIFIER` en interne). Tant qu'une Facture du Lot est « À vérifier », l'export CSV est bloqué. La raison n'est pas exportée ; si elle est affichée, c'est uniquement dans l'interface.
+Valeur binaire portée par chaque facture : `OK` ou `À vérifier` (encodée `A_VERIFIER` en interne). L'export CSV n'est plus bloqué par des Factures « À vérifier » : après le clic, l'utilisateur est prévenu s'il en reste, puis le fichier est téléchargé. La colonne `statut` du CSV porte `OK` ou `A_VERIFIER`. La raison diagnostique n'est pas exportée ; si elle est affichée, c'est uniquement dans l'interface.
 
 **Détection ambiguë**:
 Se produit quand les mots-clés de plusieurs templates matchent le même texte de facture. Dans ce cas, aucun template n'est appliqué — la facture est traitée comme si aucun template ne correspondait.
@@ -38,7 +38,7 @@ Document de loyer / occupation (ex. [locataire], [locataire]), distinct d'une **
 _Avoid_: Confondre quittance et facture ; ne pas créer de template « quittance » en V1.
 
 **Correction manuelle**:
-Modification ponctuelle d'un champ pour une facture du lot en cours. Son effet est pris en compte dans l'agrégation exportée (total par **Émetteur**) — elle ne crée ni ne modifie jamais un template.
+Modification ponctuelle d'un champ pour une facture du lot en cours. Son effet est pris en compte dans le CSV exporté et dans les totaux affichés par **Émetteur** — elle ne crée ni ne modifie jamais un template.
 _Avoid_: Confondre avec la création/édition de template (action séparée, hors de l'UI en V1).
 
 ## Déclencheurs du statut "À vérifier"
