@@ -214,12 +214,14 @@ def test_split_handle_redimensionne_panneau_apercu(live_server_url, page: Page):
 
 
 def test_zooms_panneaux_independants_par_pas_de_10(live_server_url, page: Page):
-    """Zoom tableau et aperçu indépendants, par pas de 10 %."""
+    """Zoom tableau et aperçu indépendants ; aperçu scale le média seulement (#77)."""
     page.set_viewport_size({"width": 1280, "height": 800})
     page.goto(live_server_url)
     page.set_input_files("#file-input", [FIXTURES / "scan_sans_texte.png"])
     page.wait_for_selector(".ouvrir-fichier:not([disabled])")
     page.click(".ouvrir-fichier")
+    expect(page.locator("#preview-content img")).to_be_visible()
+    expect(page.locator("#preview-filename")).to_be_visible()
 
     expect(page.locator("#main-zoom-reset")).to_have_text("100%")
     expect(page.locator("#preview-zoom-reset")).to_have_text("100%")
@@ -236,10 +238,13 @@ def test_zooms_panneaux_independants_par_pas_de_10(live_server_url, page: Page):
     page.click("#preview-zoom-in")
     expect(page.locator("#preview-zoom-reset")).to_have_text("120%")
     expect(page.locator("#main-zoom-reset")).to_have_text("110%")
-    expect(page.locator("#preview-zoom-stage")).to_have_css(
+    expect(page.locator("#preview-content")).to_have_css(
         "transform",
         re.compile(r"matrix\(1\.2"),
     )
+    expect(page.locator("#preview-filename")).to_have_css("transform", "none")
+    expect(page.locator("#preview-placeholder")).to_have_css("transform", "none")
+    expect(page.locator("#preview-zoom-stage")).to_have_css("transform", "none")
 
     page.click("#main-zoom-reset")
     expect(page.locator("#main-zoom-reset")).to_have_text("100%")
