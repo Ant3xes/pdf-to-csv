@@ -4,6 +4,8 @@ Le contexte : l'export CSV alimente un suivi comptable par fournisseur. L'export
 
 Décision : le CSV exporté contient **une ligne par Émetteur** avec les colonnes `emetteur;montant_ht;nb_documents`. L'interface conserve le détail par Facture (une ligne par fichier déposé) avec regroupement visuel et totaux par Émetteur. L'export est bloqué si une Facture n'a pas d'Émetteur ou est encore « À vérifier » ; les montants HT vides ou invalides comptent comme 0 dans l'agrégation.
 
+**Superseded by** [0005-export-detail-avec-statut.md](0005-export-detail-avec-statut.md) : l'export CSV revient au détail par Facture avec colonne `statut`, et n'est plus bloqué par « À vérifier ».
+
 ## Consequences
 
 - Breaking change du contrat CSV : plus de colonnes `fichier`, `date`, `statut`, `type` à l'export.

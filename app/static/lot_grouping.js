@@ -49,32 +49,24 @@
       }));
   }
 
-  function raisonExportBloque(lignes) {
-    if (!lignes.length) {
-      return null;
-    }
+  function messageAvertissementExport(lignes) {
     let aVerifierCount = 0;
     for (const ligne of lignes) {
       if (ligne.statut === "A_VERIFIER") {
         aVerifierCount += 1;
       }
     }
-    if (aVerifierCount > 0) {
-      const label = aVerifierCount === 1 ? "facture" : "factures";
-      return (
-        "Export impossible : " +
-        aVerifierCount +
-        " " +
-        label +
-        " encore à vérifier."
-      );
+    if (aVerifierCount === 0) {
+      return null;
     }
-    for (const ligne of lignes) {
-      if (ligne.emetteur == null || String(ligne.emetteur).trim() === "") {
-        return "Export impossible : une facture n'a pas d'émetteur.";
-      }
-    }
-    return null;
+    const label = aVerifierCount === 1 ? "facture" : "factures";
+    return (
+      "Attention : " +
+      aVerifierCount +
+      " " +
+      label +
+      " encore à vérifier. L'export contient ces lignes avec le statut A_VERIFIER."
+    );
   }
 
   function grouperLignesParEmetteur(entries) {
@@ -95,7 +87,7 @@
     parseMontantHt,
     formaterMontantHt,
     agregerParEmetteur,
-    raisonExportBloque,
+    messageAvertissementExport,
     grouperLignesParEmetteur,
   };
 })(window);

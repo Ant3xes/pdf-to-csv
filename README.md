@@ -14,7 +14,7 @@ Vous déposez plusieurs factures (ou avoirs) d’un mois. L’application :
 2. Identifie le fournisseur grâce à des modèles préconfigurés
 3. Extrait la **date** et le **montant HT**
 4. Affiche un tableau éditable pour corriger ce qui manque ou ce qui est douteux
-5. Exporte un CSV **agrégé par émetteur** (totaux nets HT), prêt pour Excel
+5. Exporte un CSV **détail** (une ligne par facture, avec statut), prêt pour Excel
 
 Un fichier = une facture (ou un avoir) = une ligne dans l’interface. Pas d’historique entre deux lancements : chaque session repart de zéro.
 
@@ -71,26 +71,28 @@ Cas fréquents d’« À vérifier » :
 
 - Une **facture** et un **avoir** suivent le même parcours (1 fichier → 1 ligne).
 - Un avoir est reconnu surtout via le titre ou le nom de fichier (« AVOIR », « votre avoir », etc.). En cas de doute, le document reste une facture.
-- À l’export, les montants d’avoirs **se déduisent** du total net de l’émetteur (montants négatifs).
+- À l’export, chaque avoir est une ligne distincte (`type=AVOIR`, montant HT négatif). Les totaux nets par émetteur restent visibles dans l’interface.
 
 ### Format du CSV exporté
 
-Séparateur `;` (Excel FR), décimale avec virgule. **Une ligne par émetteur**, pas une ligne par fichier :
+Séparateur `;` (Excel FR), décimale avec virgule. **Une ligne par facture** (fichier) :
 
 ```csv
-emetteur;montant_ht;nb_documents
-Masse;1578,39;3
-Aluplast;269,50;1
-Hennequin;400,80;2
+fichier;emetteur;date;montant_ht;statut;type
+Masse 22 Juillet 26.pdf;Masse;22/07/2026;751,95;OK;FACTURE
+scan.png;Altagel;15/03/2026;99,50;A_VERIFIER;FACTURE
 ```
 
 | Colonne | Contenu |
 |---|---|
+| `fichier` | Nom du fichier déposé |
 | `emetteur` | Nom de la société qui facture |
-| `montant_ht` | Total net HT (factures + avoirs) |
-| `nb_documents` | Nombre de fichiers agrégés pour cet émetteur |
+| `date` | Date de la facture |
+| `montant_ht` | Montant HT (négatif pour un avoir) |
+| `statut` | `OK` ou `A_VERIFIER` |
+| `type` | `FACTURE` ou `AVOIR` |
 
-Le détail fichier par fichier reste visible dans l’application ; seul le CSV est agrégé.
+L’export reste possible si des lignes sont « À vérifier » : un avertissement s’affiche après le clic, puis le CSV est téléchargé.
 
 ### Limites (V1)
 

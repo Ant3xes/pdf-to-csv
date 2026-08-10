@@ -254,15 +254,7 @@
       exportBlockMessage.textContent = "";
       return;
     }
-    const raison = LotGrouping.raisonExportBloque(lotLignes);
-    exportButton.disabled = raison != null;
-    if (raison) {
-      exportBlockMessage.textContent = raison;
-      exportBlockMessage.hidden = false;
-    } else {
-      exportBlockMessage.hidden = true;
-      exportBlockMessage.textContent = "";
-    }
+    exportButton.disabled = false;
   }
 
   function refreshGroupingUi() {
@@ -758,9 +750,17 @@
   }
 
   async function exportLotCsv() {
-    const raison = LotGrouping.raisonExportBloque(lotLignes);
-    if (lotLignes.length === 0 || raison) {
+    if (lotLignes.length === 0) {
       return;
+    }
+    const avertissement = LotGrouping.messageAvertissementExport(lotLignes);
+    if (avertissement) {
+      exportBlockMessage.textContent = avertissement;
+      exportBlockMessage.hidden = false;
+      window.alert(avertissement);
+    } else {
+      exportBlockMessage.hidden = true;
+      exportBlockMessage.textContent = "";
     }
     showError("");
     try {

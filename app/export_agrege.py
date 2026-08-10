@@ -24,17 +24,6 @@ def valider_export(lignes: list[LigneFacture]) -> str | None:
     for ligne in lignes:
         if ligne.statut not in ("OK", "A_VERIFIER"):
             return "Export impossible : statut de facture invalide."
-        if ligne.statut == "A_VERIFIER":
-            return "Export impossible : des factures sont encore à vérifier."
-        emetteur = (ligne.emetteur or "").strip()
-        if not emetteur:
-            return "Export impossible : une facture n'a pas d'émetteur."
-        date = (ligne.date or "").strip()
-        if not date or ligne.montant_ht is None:
-            return (
-                "Export impossible : une facture OK n'a pas de date "
-                "ou de montant HT."
-            )
     return None
 
 

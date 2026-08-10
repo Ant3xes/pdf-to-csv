@@ -134,8 +134,8 @@ def test_api_export_accepte_statut_ok_apres_validation_client(client):
     body = response.data.decode()
     assert body == (
         "\ufeff"
-        "emetteur;montant_ht;nb_documents\n"
-        "Saisi à la main;12,50;1\n"
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;OK;FACTURE\n"
     )
 
 
@@ -298,7 +298,7 @@ def test_api_lot_ne_persiste_pas_dans_corpus(client):
 
 
 def test_api_export_csv_format_fr_avec_corrections(client):
-    """POST /api/export télécharge le CSV agrégé du Lot, Corrections manuelles incluses (#13)."""
+    """POST /api/export télécharge le CSV détail du Lot, Corrections manuelles incluses (#79)."""
     response = client.post(
         "/api/export",
         json={
@@ -330,15 +330,15 @@ def test_api_export_csv_format_fr_avec_corrections(client):
     body = response.data.decode()
     assert body == (
         "\ufeff"
-        "emetteur;montant_ht;nb_documents\n"
-        "Masse;751,95;1\n"
-        "Saisi à la main;12,50;1\n"
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;751,95;OK;FACTURE\n"
+        "inconnu.pdf;Saisi à la main;01/08/2026;12,50;OK;AVOIR\n"
     )
     assert "raison" not in body.lstrip("\ufeff").split("\n")[0]
 
 
-def test_api_export_agrege_meme_emetteur(client):
-    """Plusieurs factures du même Émetteur → une ligne CSV agrégée (#42)."""
+def test_api_export_detail_meme_emetteur(client):
+    """Plusieurs factures du même Émetteur → une ligne CSV chacune (#79)."""
     response = client.post(
         "/api/export",
         json={
@@ -366,12 +366,13 @@ def test_api_export_agrege_meme_emetteur(client):
     assert response.status_code == 200
     assert response.data.decode() == (
         "\ufeff"
-        "emetteur;montant_ht;nb_documents\n"
-        "Masse;955,24;2\n"
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;751,95;OK;FACTURE\n"
+        "Masse 15 Juillet 26.pdf;Masse;15/07/2026;203,29;OK;FACTURE\n"
     )
 
 
-def test_api_export_rejette_a_verifier(client):
+def test_api_export_accepte_a_verifier(client):
     response = client.post(
         "/api/export",
         json={
@@ -388,11 +389,13 @@ def test_api_export_rejette_a_verifier(client):
         },
     )
 
-    assert response.status_code == 400
-    assert "vérifier" in response.get_json()["error"].lower()
+    assert response.status_code == 200
+    body = response.data.decode()
+    assert "A_VERIFIER" in body
+    assert "inconnu.pdf;Masse;01/08/2026;12,50;A_VERIFIER;FACTURE" in body
 
 
-def test_api_export_rejette_emetteur_manquant(client):
+def test_api_export_accepte_emetteur_manquant(client):
     response = client.post(
         "/api/export",
         json={
@@ -409,12 +412,12 @@ def test_api_export_rejette_emetteur_manquant(client):
         },
     )
 
-    assert response.status_code == 400
-    assert "émetteur" in response.get_json()["error"].lower()
+    assert response.status_code == 200
+    assert "inconnu.pdf;;01/08/2026;12,50;OK;FACTURE" in response.data.decode()
 
 
-def test_api_export_total_net_facture_et_avoir(client):
-    """Total net par Émetteur inclut Factures et Avoirs (#42)."""
+def test_api_export_facture_et_avoir_detail(client):
+    """Facture et Avoir restent des lignes distinctes dans le CSV détail (#79)."""
     response = client.post(
         "/api/export",
         json={
@@ -442,13 +445,14 @@ def test_api_export_total_net_facture_et_avoir(client):
     assert response.status_code == 200
     assert response.data.decode() == (
         "\ufeff"
-        "emetteur;montant_ht;nb_documents\n"
-        "Hennequin;400,80;2\n"
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Hennequin;22/07/2026;1751,30;OK;FACTURE\n"
+        "Hennequin AVOIR 10 Juillet 26.pdf;Hennequin;10/07/2026;-1350,50;OK;AVOIR\n"
     )
 
 
-def test_api_export_rejette_ok_sans_date_ou_montant(client):
-    """Export refuse un statut OK client si date/montant manquent (#17)."""
+def test_api_export_accepte_sans_date_ou_montant(client):
+    """Export accepte des champs date/montant vides (#79)."""
     response = client.post(
         "/api/export",
         json={
@@ -465,10 +469,8 @@ def test_api_export_rejette_ok_sans_date_ou_montant(client):
         },
     )
 
-    assert response.status_code == 400
-    assert "date" in response.get_json()["error"].lower() or "montant" in response.get_json()[
-        "error"
-    ].lower()
+    assert response.status_code == 200
+    assert "inconnu.pdf;Masse;;12,50;OK;FACTURE" in response.data.decode()
 
 
 def test_api_export_rejette_lot_vide(client):
@@ -515,7 +517,8 @@ def test_static_js_lot_grouping_expose_agregation(client):
     assert response.status_code == 200
     js = response.data.decode()
     assert "agregerParEmetteur" in js
-    assert "raisonExportBloque" in js
+    assert "messageAvertissementExport" in js
+    assert "raisonExportBloque" not in js
     assert "sans émetteur" in js
 
 

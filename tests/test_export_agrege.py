@@ -112,18 +112,12 @@ def test_valider_export_rejette_lot_vide():
     assert valider_export([]) == "Aucune ligne à exporter."
 
 
-def test_valider_export_rejette_emetteur_manquant():
-    erreur = valider_export([_ligne(emetteur=None)])
-
-    assert erreur is not None
-    assert "émetteur" in erreur.lower()
+def test_valider_export_accepte_emetteur_manquant():
+    assert valider_export([_ligne(emetteur=None)]) is None
 
 
-def test_valider_export_rejette_a_verifier():
-    erreur = valider_export([_ligne(statut="A_VERIFIER")])
-
-    assert erreur is not None
-    assert "vérifier" in erreur.lower()
+def test_valider_export_accepte_a_verifier():
+    assert valider_export([_ligne(statut="A_VERIFIER")]) is None
 
 
 def test_valider_export_rejette_statut_invalide():
@@ -133,10 +127,9 @@ def test_valider_export_rejette_statut_invalide():
     assert "statut" in erreur.lower()
 
 
-def test_valider_export_rejette_ok_sans_date_ou_montant():
-    assert valider_export([_ligne(date=None)]) is not None
-    assert valider_export([_ligne(montant_ht="")]) is not None
-    assert "montant" in (valider_export([_ligne(montant_ht=None)]) or "").lower()
+def test_valider_export_accepte_sans_date_ou_montant():
+    assert valider_export([_ligne(date=None)]) is None
+    assert valider_export([_ligne(montant_ht=None)]) is None
 
 
 def test_valider_export_accepte_lot_ok():

@@ -36,31 +36,42 @@ def test_totaux_et_groupes_apres_depot_masse(live_server_url, page: Page):
     expect(page.locator("#export-csv")).to_be_enabled()
 
 
-def test_export_bloque_si_a_verifier(live_server_url, page: Page):
+def test_export_autorise_si_a_verifier_avec_avertissement(live_server_url, page: Page):
     page.goto(live_server_url)
     page.set_input_files("#file-input", [FIXTURES / "scan_sans_texte.png"])
     page.wait_for_selector(".issuer-group")
 
-    expect(page.locator("#export-csv")).to_be_disabled()
+    expect(page.locator("#export-csv")).to_be_enabled()
+    expect(page.locator(".issuer-group tr.ligne-a-verifier")).to_have_count(1)
+
+    dialogs = []
+    page.on("dialog", lambda dialog: (dialogs.append(dialog.message), dialog.accept()))
+
+    with page.expect_download() as download_info:
+        page.click("#export-csv")
+    content = download_info.value.path().read_text(encoding="utf-8-sig")
+    assert content.startswith("fichier;emetteur;date;montant_ht;statut;type\n")
+    assert "A_VERIFIER" in content
+    assert any("à vérifier" in message.lower() for message in dialogs)
     expect(page.locator("#export-block-message")).to_be_visible()
     expect(page.locator("#export-block-message")).to_contain_text("à vérifier")
-    expect(page.locator(".issuer-group tr.ligne-a-verifier")).to_have_count(1)
 
 
 def test_export_reussi_apres_validation_ligne(live_server_url, page: Page):
     page.goto(live_server_url)
     page.set_input_files("#file-input", [FIXTURES / "scan_sans_texte.png"])
-    page.wait_for_selector("#export-csv[disabled]")
-    expect(page.locator("#export-block-message")).to_contain_text("à vérifier")
+    page.wait_for_selector("#export-csv:not([disabled])")
 
     page.click(".valider-ligne")
     expect(page.locator("#export-csv")).to_be_enabled()
-    expect(page.locator("#export-block-message")).to_be_hidden()
 
     with page.expect_download() as download_info:
         page.click("#export-csv")
     content = download_info.value.path().read_text(encoding="utf-8-sig")
-    assert content == "emetteur;montant_ht;nb_documents\nAltagel;99,50;1\n"
+    assert content == (
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "scan_sans_texte.png;Altagel;15/03/2026;99,50;OK;FACTURE\n"
+    )
 
 
 def test_ligne_incomplete_et_box_indiquent_les_champs_manquants(live_server_url, page: Page):
@@ -119,4 +130,7 @@ def test_export_reussi_apres_lot_ok(live_server_url, page: Page):
         page.click("#export-csv")
     download = download_info.value
     content = download.path().read_text(encoding="utf-8-sig")
-    assert content == "emetteur;montant_ht;nb_documents\nMasse;751,95;1\n"
+    assert content == (
+        "fichier;emetteur;date;montant_ht;statut;type\n"
+        "Masse 22 Juillet 26.pdf;Masse;22/07/2026;751,95;OK;FACTURE\n"
+    )
