@@ -1,0 +1,11 @@
+issuer: Free
+keywords:
+  - Free Pro
+  - pro.free.fr
+fields:
+  date: '(\d{2}/\d{2}/\d{4})\s+F\d+'
+  amount: 'TOTAL HT\s+([\d.]+)\s*€'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: '.'
