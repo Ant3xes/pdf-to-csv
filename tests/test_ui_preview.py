@@ -242,7 +242,11 @@ def test_zooms_panneaux_independants_par_pas_de_10(live_server_url, page: Page):
     page.click("#preview-zoom-in")
     expect(page.locator("#preview-zoom-reset")).to_have_text("120%")
     expect(page.locator("#main-zoom-reset")).to_have_text("110%")
-    assert img.bounding_box()["width"] == pytest.approx(media_width_100 * 1.2, rel=0.05)
+    media_width_120 = img.bounding_box()["width"]
+    content_width_120 = page.locator("#preview-content").bounding_box()["width"]
+    assert media_width_120 == pytest.approx(media_width_100 * 1.2, rel=0.05)
+    # Régression : le conteneur ne doit pas grossir sans le média (scrollbar seule).
+    assert media_width_120 == pytest.approx(content_width_120, rel=0.05)
     assert page.locator("#preview-filename").bounding_box()["width"] == pytest.approx(
         filename_width_100, rel=0.05
     )
