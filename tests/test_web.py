@@ -552,7 +552,7 @@ def test_page_accueil_contient_panneau_apercu(client):
 
 
 def test_static_js_ouvre_fichier_via_object_url_sans_endpoint(client):
-    """Fichier du Lot ouvert via object URL in-app, sans endpoint serveur (#26, #50)."""
+    """Fichier du Lot ouvert via object URL / pdf.js in-app, sans endpoint serveur (#26, #50, #71)."""
     response = client.get("/static/app.js")
 
     assert response.status_code == 200
@@ -563,6 +563,9 @@ def test_static_js_ouvre_fichier_via_object_url_sans_endpoint(client):
     assert "fileUrls" in js
     assert "depositedFiles" in js
     assert "heic2any" in js
+    assert "pdf.min.js" in js
+    assert "pdf.worker.min.js" in js
+    assert "renderPdfPages" in js or "getDocument" in js
     assert "preview-content" in js or "previewContent" in js or "showPreview" in js
     assert "initSplitResize" in js or "setPreviewWidth" in js
     assert "setMainZoom" in js
@@ -574,6 +577,14 @@ def test_static_js_ouvre_fichier_via_object_url_sans_endpoint(client):
     assert "Fichier indisponible" in js
     assert "/api/pdf" not in js
     assert "/api/fichier" not in js
+
+
+def test_static_pdfjs_vendor_servi(client):
+    """Assets pdf.js vendored disponibles pour l’aperçu desktop (#71)."""
+    for path in ("/static/vendor/pdf.min.js", "/static/vendor/pdf.worker.min.js"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert len(response.data) > 1000
 
 
 def test_api_export_rejette_type_document_invalide(client):
