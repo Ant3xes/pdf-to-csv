@@ -1,10 +1,9 @@
 issuer: Veolia Eau
 keywords:
   - VEOLIA EAU
-  - Récapitulatif de votre avoir
 fields:
-  date: 'AVOIR du (\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4})'
-  amount: 'Sous-total général\s+(\d[\d\s]*,\d{2})'
+  date: '(?:AVOIR du|VOTRE FACTURE DU)\s+(\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4})'
+  amount: '(?:Sous-total général|Montant facturé)\s+(\d[\d\s]*,\d{2})'
 options:
   date_formats:
     - '%d %B %Y'

@@ -6,6 +6,7 @@ from app.lot import corriger_ligne, process_lot
 from app.models import TYPE_AVOIR, TYPE_FACTURE
 
 CORPUS = Path(__file__).resolve().parents[1] / "private_corpus"
+CORPUS_2 = Path(__file__).resolve().parents[1] / "private_corpus_2"
 TEMPLATES = Path(__file__).resolve().parents[1] / "invoice_templates"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -59,6 +60,22 @@ def test_lot_devaud_une_seule_ligne_malgre_multi_pages_et_bl():
     assert ligne.statut == "OK"
 
 
+def test_lot_devaud_10_juillet_montant_ht_avec_separateur_milliers():
+    """Total HT avec espace milliers (ex. 1 095,38) → montant HT OK (#67)."""
+    lignes = process_lot(
+        [CORPUS / "Devaud 10 Juillet 26.pdf"],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "Devaud 10 Juillet 26.pdf"
+    assert ligne.emetteur == "Devaud"
+    assert ligne.date == "10/07/2026"
+    assert _montant_fr(ligne) == "1095,38"
+    assert ligne.statut == "OK"
+
+
 def test_lot_aluplast_montant_ht_pas_ttc_ni_tva():
     lignes = process_lot(
         [CORPUS / "Aluplast 13 Juillet 26.pdf"],
@@ -99,20 +116,29 @@ def test_lot_hennequin_facture_et_avoir_meme_template():
     assert avoir.type_document == TYPE_AVOIR
 
 
-def test_lot_veolia_avoir_extrait_credit_et_date():
+def test_lot_veolia_factures_et_avoir_meme_template():
     lignes = process_lot(
-        [CORPUS / "Véolia eaux Avoir 22 Juillet 26.pdf"],
+        [
+            CORPUS_2 / "Véolia eaux 23 Juillet 26.pdf",
+            CORPUS / "Véolia eaux Avoir 22 Juillet 26.pdf",
+        ],
         TEMPLATES,
     )
 
-    assert len(lignes) == 1
-    ligne = lignes[0]
-    assert ligne.fichier == "Véolia eaux Avoir 22 Juillet 26.pdf"
-    assert ligne.emetteur == "Veolia Eau"
-    assert ligne.date == "22/07/2026"
-    assert _montant_fr(ligne) == "-1070,27"
-    assert ligne.statut == "OK"
-    assert ligne.type_document == TYPE_AVOIR
+    assert len(lignes) == 2
+    facture, avoir = lignes
+    assert facture.fichier == "Véolia eaux 23 Juillet 26.pdf"
+    assert facture.emetteur == "Veolia Eau"
+    assert facture.date == "23/07/2026"
+    assert _montant_fr(facture) == "1736,04"
+    assert facture.statut == "OK"
+    assert facture.type_document == TYPE_FACTURE
+    assert avoir.fichier == "Véolia eaux Avoir 22 Juillet 26.pdf"
+    assert avoir.emetteur == "Veolia Eau"
+    assert avoir.date == "22/07/2026"
+    assert _montant_fr(avoir) == "-1070,27"
+    assert avoir.statut == "OK"
+    assert avoir.type_document == TYPE_AVOIR
 
 
 def test_lot_vives_eaux_factures_et_avoir_meme_template():
@@ -368,6 +394,25 @@ def test_lot_metro_deux_pdf_meme_template_ok():
     assert all(l.emetteur == "Métro" for l in lignes)
     assert [l.date for l in lignes] == ["01/07/2026", "08/07/2026"]
     assert [_montant_fr(l) for l in lignes] == ["1837,04", "2166,78"]
+    assert all(l.statut == "OK" for l in lignes)
+
+
+def test_lot_edf_deux_pdf_meme_template_ok():
+    lignes = process_lot(
+        [
+            CORPUS_2 / "EDF Juillet 26.pdf",
+            CORPUS_2 / "EDF Electricité 1er Juillet 26.pdf",
+        ],
+        TEMPLATES,
+    )
+    assert len(lignes) == 2
+    assert [l.fichier for l in lignes] == [
+        "EDF Juillet 26.pdf",
+        "EDF Electricité 1er Juillet 26.pdf",
+    ]
+    assert all(l.emetteur == "EDF" for l in lignes)
+    assert [l.date for l in lignes] == ["01/08/2026", "01/07/2026"]
+    assert [_montant_fr(l) for l in lignes] == ["1027,78", "889,36"]
     assert all(l.statut == "OK" for l in lignes)
 
 
@@ -689,3 +734,200 @@ def test_correction_manuelle_type_refletee_dans_export():
     corrigee = corriger_ligne(lignes[0], type_document=TYPE_AVOIR)
     csv = export_csv([corrigee])
     assert csv == "\ufeffemetteur;montant_ht;nb_documents\nMasse;751,95;1\n"
+
+
+def test_lot_vbb_factures_et_avoir_meme_template():
+    lignes = process_lot(
+        [
+            CORPUS_2 / "VBB 10 Juillet 26.pdf",
+            CORPUS_2 / "VBB 17 Juillet 26.pdf",
+            CORPUS_2 / "VBB 28 Juillet 26.pdf",
+            CORPUS_2 / "VBB 31 Juillet 26.pdf",
+            CORPUS_2 / "VBB Avoir 2 Juillet 26.pdf",
+        ],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 5
+    assert all(ligne.emetteur == "VBB" for ligne in lignes)
+    assert [ligne.date for ligne in lignes] == [
+        "10/07/2026",
+        "17/07/2026",
+        "28/07/2026",
+        "31/07/2026",
+        "02/07/2026",
+    ]
+    assert [_montant_fr(ligne) for ligne in lignes] == [
+        "111,13",
+        "73,32",
+        "103,71",
+        "55,71",
+        "-13,27",
+    ]
+    assert all(ligne.statut == "OK" for ligne in lignes)
+    assert [ligne.type_document for ligne in lignes] == [
+        TYPE_FACTURE,
+        TYPE_FACTURE,
+        TYPE_FACTURE,
+        TYPE_FACTURE,
+        TYPE_AVOIR,
+    ]
+
+
+def test_lot_vendee_crustaces_trois_pdf_meme_template_ok():
+    lignes = process_lot(
+        [
+            CORPUS_2 / "Vendée crustacés 10 Juillet 26.pdf",
+            CORPUS_2 / "Vendée crustacés 20 Juillet 26.pdf",
+            CORPUS_2 / "Vendée crustacés 31 Juillet 26.pdf",
+        ],
+        TEMPLATES,
+    )
+
+    assert len(lignes) == 3
+    assert all(ligne.emetteur == "Vendée crustacés" for ligne in lignes)
+    assert [ligne.date for ligne in lignes] == [
+        "10/07/2026",
+        "20/07/2026",
+        "31/07/2026",
+    ]
+    assert [_montant_fr(ligne) for ligne in lignes] == [
+        "2025,14",
+        "3974,24",
+        "4307,60",
+    ]
+    assert all(ligne.statut == "OK" for ligne in lignes)
+
+
+def test_lot_mercier_template_ok():
+    lignes = process_lot([CORPUS_2 / "Mercier 31 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Mercier"
+    assert ligne.date == "31/07/2026"
+    assert _montant_fr(ligne) == "3702,15"
+    assert ligne.statut == "OK"
+
+
+def test_lot_nespresso_template_ok():
+    lignes = process_lot([CORPUS_2 / "Nespresso 16 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Nespresso"
+    assert ligne.date == "16/07/2026"
+    assert _montant_fr(ligne) == "439,53"
+    assert ligne.statut == "OK"
+
+
+def test_lot_free_template_ok():
+    lignes = process_lot([CORPUS_2 / "Free 1er août 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Free"
+    assert ligne.date == "01/08/2026"
+    assert _montant_fr(ligne) == "51,45"
+    assert ligne.statut == "OK"
+
+
+def test_lot_inexweb_social_et_compta_meme_template_ok():
+    lignes = process_lot(
+        [
+            CORPUS_2 / "Inexweb social 31 Juillet 26.pdf",
+            CORPUS_2 / "Inexweb compta 31 Juillet 26.pdf",
+        ],
+        TEMPLATES,
+    )
+    assert len(lignes) == 2
+    assert all(l.emetteur == "Inexweb" for l in lignes)
+    assert [l.date for l in lignes] == ["31/07/2026", "31/07/2026"]
+    assert [_montant_fr(l) for l in lignes] == ["631,66", "669,01"]
+    assert all(l.statut == "OK" for l in lignes)
+
+
+def test_lot_erco_template_ok():
+    lignes = process_lot([CORPUS_2 / "erco 16 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "ERCO"
+    assert ligne.date == "16/07/2026"
+    assert _montant_fr(ligne) == "331,64"
+    assert ligne.statut == "OK"
+    assert ligne.type_document == TYPE_FACTURE
+
+
+def test_lot_maison_vito_template_ok():
+    lignes = process_lot([CORPUS_2 / "Maison Vito 15 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Maison Vito"
+    assert ligne.date == "15/07/2026"
+    assert _montant_fr(ligne) == "114,00"
+    assert ligne.statut == "OK"
+
+
+def test_lot_la_poste_template_ok():
+    lignes = process_lot([CORPUS_2 / "la Poste 9 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "La Poste"
+    assert ligne.date == "09/07/2026"
+    assert _montant_fr(ligne) == "17,14"
+    assert ligne.statut == "OK"
+
+
+def test_lot_hapi_facture_pas_avoir_malgre_cgv():
+    lignes = process_lot([CORPUS_2 / "Hapi 5 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Hapi"
+    assert ligne.date == "05/07/2026"
+    assert _montant_fr(ligne) == "1200,00"
+    assert ligne.statut == "OK"
+    assert ligne.type_document == TYPE_FACTURE
+
+
+def test_lot_compagnie_desserts_template_ok():
+    lignes = process_lot(
+        [CORPUS_2 / "Compagnie desserts 24 Juillet 26.pdf"],
+        TEMPLATES,
+    )
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.emetteur == "Compagnie des Desserts"
+    assert ligne.date == "24/07/2026"
+    assert _montant_fr(ligne) == "230,04"
+    assert ligne.statut == "OK"
+
+
+def test_lot_marche_aux_vins_template_ok():
+    lignes = process_lot([CORPUS_2 / "Marché aux vins 31 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "Marché aux vins 31 Juillet 26.pdf"
+    assert ligne.emetteur == "Marché aux vins"
+    assert ligne.date == "31/07/2026"
+    assert _montant_fr(ligne) == "483,90"
+    assert ligne.statut == "OK"
+
+
+def test_lot_lofoten_template_ok():
+    lignes = process_lot([CORPUS_2 / "Lofoten 13 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "Lofoten 13 Juillet 26.pdf"
+    assert ligne.emetteur == "Lofoten"
+    assert ligne.date == "13/07/2026"
+    assert _montant_fr(ligne) == "68,85"
+    assert ligne.statut == "OK"
+
+
+def test_lot_fincut_template_ok():
+    lignes = process_lot([CORPUS_2 / "Fincut 21 Juillet 26.pdf"], TEMPLATES)
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "Fincut 21 Juillet 26.pdf"
+    assert ligne.emetteur == "Fincut"
+    assert ligne.date == "21/07/2026"
+    assert _montant_fr(ligne) == "37,41"
+    assert ligne.statut == "OK"
+
