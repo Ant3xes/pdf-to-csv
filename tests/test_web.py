@@ -793,20 +793,20 @@ def test_api_journal_lot_ok_contient_diagnostics_pipeline(client):
 
 
 def test_api_journal_ocr_indique_source_et_raison(client):
-    """Facture OCR : journal marque OCR et statut À vérifier (#57)."""
-    pdf_path = CORPUS / "Altagel 10 Juillet 26.pdf"
+    """Vrai OCR (pas de texte natif) : journal marque OCR et statut À vérifier (#57)."""
+    pdf_path = FIXTURES / "scan_sans_texte.pdf"
     with pdf_path.open("rb") as fh:
         assert (
             client.post(
                 "/api/lot",
-                data={"files": (fh, "Altagel 10 Juillet 26.pdf")},
+                data={"files": (fh, "scan_sans_texte.pdf")},
                 content_type="multipart/form-data",
             ).status_code
             == 200
         )
 
     body = client.get("/api/journal").data.decode("utf-8")
-    assert "fichier=Altagel 10 Juillet 26.pdf" in body
+    assert "fichier=scan_sans_texte.pdf" in body
     assert "source=OCR" in body
     assert "statut=A_VERIFIER" in body
     assert "OCR" in body
@@ -905,11 +905,11 @@ def test_api_journal_capture_exception_technique(client, monkeypatch):
 
 def test_api_lot_ligne_a_verifier_expose_raisons_diagnostic(client):
     """Réponse /api/lot inclut raisons_diagnostic pour À vérifier (C)."""
-    pdf_path = CORPUS / "Altagel 10 Juillet 26.pdf"
+    pdf_path = FIXTURES / "scan_sans_texte.pdf"
     with pdf_path.open("rb") as fh:
         response = client.post(
             "/api/lot",
-            data={"files": (fh, "Altagel 10 Juillet 26.pdf")},
+            data={"files": (fh, "scan_sans_texte.pdf")},
             content_type="multipart/form-data",
         )
 

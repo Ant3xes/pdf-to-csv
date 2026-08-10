@@ -1,0 +1,11 @@
+issuer: La Chablisienne
+keywords:
+  - CHR FACTURE
+  - ADELPHE
+fields:
+  date: 'FACTURE\s+\S+\s+du\s+(\d{2}/\d{2}/\d{2})'
+  amount: '(\d[\d\s]*,\d{2})\s+\d{2}\s+\d[\d\s]*,\d{2}\s+\d[\d\s]*,\d{2}\s+\d[\d\s]*,\d{2}\s+EUR'
+options:
+  date_formats:
+    - '%d/%m/%y'
+  decimal_separator: ','

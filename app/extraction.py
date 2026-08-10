@@ -21,8 +21,6 @@ SUPPORTED_DOCUMENT_SUFFIXES = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".heic
 
 # Below this, native text is treated as empty/insufficient → OCR fallback.
 MIN_NATIVE_CHARS = 50
-# Page image covering at least this fraction of the page → scanned page.
-FULL_PAGE_IMAGE_RATIO = 0.9
 OCR_DPI = 200
 OCR_LANG = "fra"
 
@@ -39,26 +37,6 @@ def is_supported_document(filename: str) -> bool:
 
 def supported_document_formats_label() -> str:
     return ", ".join(sorted(SUPPORTED_DOCUMENT_SUFFIXES))
-
-
-def _page_max_image_ratio(page) -> float:
-    area = page.width * page.height
-    if area <= 0:
-        return 0.0
-    max_ratio = 0.0
-    for image in page.images:
-        width = image.get("width", abs(image["x1"] - image["x0"]))
-        height = image.get("height", abs(image["y1"] - image["y0"]))
-        max_ratio = max(max_ratio, (width * height) / area)
-    return max_ratio
-
-
-def _is_scanned_pdf(pdf) -> bool:
-    if not pdf.pages:
-        return False
-    return all(
-        _page_max_image_ratio(page) >= FULL_PAGE_IMAGE_RATIO for page in pdf.pages
-    )
 
 
 def _extract_native_text(pdf) -> str:
@@ -89,12 +67,12 @@ def _extract_text_from_image(image_path: Path) -> SourceText:
 def _extract_text_from_pdf(pdf_path: Path) -> SourceText:
     with pdfplumber.open(pdf_path) as pdf:
         native = _extract_native_text(pdf)
-        scanned = _is_scanned_pdf(pdf)
 
     if len(native.strip()) >= MIN_NATIVE_CHARS:
-        # Full-page image PDFs often carry an OCR text layer already; treat
-        # that source as OCR so statut stays A_VERIFIER (CONTEXT rule 6).
-        return SourceText(text=native, from_ocr=scanned)
+        # Selectable text is usable → native source, even with a full-page
+        # background image (e.g. La Chablisienne). from_ocr only when we
+        # actually fall back to Tesseract (CONTEXT OCR rule).
+        return SourceText(text=native, from_ocr=False)
 
     return SourceText(text=_extract_ocr_text(pdf_path), from_ocr=True)
 

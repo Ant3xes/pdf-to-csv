@@ -416,7 +416,8 @@ def test_lot_edf_deux_pdf_meme_template_ok():
     assert all(l.statut == "OK" for l in lignes)
 
 
-def test_lot_hotel_formule1_ocr_champs_mais_a_verifier():
+def test_lot_hotel_formule1_texte_natif_ok():
+    """Image de fond pleine page n'impose plus OCR si le texte est sélectionnable."""
     formule = next(CORPUS.glob("Hotel Formule*"))
     lignes = process_lot([formule], TEMPLATES)
     assert len(lignes) == 1
@@ -425,10 +426,10 @@ def test_lot_hotel_formule1_ocr_champs_mais_a_verifier():
     assert ligne.emetteur == "Hotel Formule 1"
     assert ligne.date == "05/07/2026"
     assert _montant_fr(ligne) == "30,91"
-    assert ligne.statut == "A_VERIFIER"
+    assert ligne.statut == "OK"
 
 
-def test_lot_altagel_scan_ocr_extrait_champs_mais_a_verifier():
+def test_lot_altagel_texte_natif_ok():
     lignes = process_lot(
         [CORPUS / "Altagel 10 Juillet 26.pdf"],
         TEMPLATES,
@@ -440,7 +441,7 @@ def test_lot_altagel_scan_ocr_extrait_champs_mais_a_verifier():
     assert ligne.emetteur == "Altagel"
     assert ligne.date == "10/07/2026"
     assert _montant_fr(ligne) == "362,33"
-    assert ligne.statut == "A_VERIFIER"
+    assert ligne.statut == "OK"
 
 
 def test_lot_altagel_montant_avec_separateur_milliers():
@@ -456,7 +457,7 @@ def test_lot_altagel_montant_avec_separateur_milliers():
     assert ligne.emetteur == "Altagel"
     assert ligne.date == "20/07/2026"
     assert _montant_fr(ligne) == "955,76"
-    assert ligne.statut == "A_VERIFIER"
+    assert ligne.statut == "OK"
 
 
 def test_lot_pdf_sans_texte_natif_bascule_ocr_avant_extraction():
@@ -930,4 +931,20 @@ def test_lot_fincut_template_ok():
     assert ligne.date == "21/07/2026"
     assert _montant_fr(ligne) == "37,41"
     assert ligne.statut == "OK"
+
+
+def test_lot_chablisienne_pdf_image_plein_page_reste_natif_et_ok():
+    """PDF avec image de fond + texte sélectionnable : source native, pas OCR."""
+    lignes = process_lot(
+        [CORPUS_2 / "La Chablisienne 21 Juillet 26.pdf"],
+        TEMPLATES,
+    )
+    assert len(lignes) == 1
+    ligne = lignes[0]
+    assert ligne.fichier == "La Chablisienne 21 Juillet 26.pdf"
+    assert ligne.emetteur == "La Chablisienne"
+    assert ligne.date == "21/07/2026"
+    assert _montant_fr(ligne) == "1135,80"
+    assert ligne.statut == "OK"
+    assert "OCR" not in (ligne.raisons_diagnostic or [])
 
