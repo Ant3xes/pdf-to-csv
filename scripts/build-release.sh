@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Build macOS .app + DMG. Signature / notarisation optionnelles via env :
+#   APPLE_SIGNING_IDENTITY, APPLE_NOTARIZE_KEYCHAIN_PROFILE
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

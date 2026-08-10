@@ -5,6 +5,7 @@ from typing import Any, Mapping
 
 from app.amounts import MontantHt
 
+# Vocabulaire CONTEXT.md vs fils d'API : type FACTURE|AVOIR, statut OK|A_VERIFIER.
 TYPE_FACTURE = "FACTURE"
 TYPE_AVOIR = "AVOIR"
 TYPES_DOCUMENT = frozenset({TYPE_FACTURE, TYPE_AVOIR})
@@ -17,12 +18,16 @@ _DEFAULT_DATE_FORMATS = ("%d/%m/%Y", "%d/%m/%y")
 
 @dataclass(frozen=True)
 class LigneFacture:
+    """Une Facture du Lot : 1 fichier = 1 ligne (détail éditable / export)."""
+
     fichier: str
+    # Émetteur = libellé Template.issuer — jamais extrait par regex (CONTEXT.md).
     emetteur: str | None
     date: str | None
     montant_ht: MontantHt | None
     statut: str
     type_document: str
+    # Affiché en UI seulement ; hors CSV (ADR-0005).
     raisons_diagnostic: tuple[str, ...] = ()
 
     def to_api_dict(self) -> dict[str, Any]:
@@ -39,7 +44,11 @@ class LigneFacture:
 
 @dataclass(frozen=True)
 class Template:
-    """Contrat typé d'un Template YAML (Fournisseur → règles d'extraction)."""
+    """Contrat typé d'un Template YAML (Fournisseur → règles d'extraction).
+
+    Le champ YAML ``issuer`` est l'Émetteur (libellé fixe) ; on conserve la clé
+    anglaise du fichier YAML pour ne pas casser les Templates existants.
+    """
 
     issuer: str
     keywords: tuple[str, ...]
@@ -47,6 +56,7 @@ class Template:
     amount_pattern: str | None
     date_formats: tuple[str, ...]
     decimal_separator: str
+    # "negative" force un crédit sur Avoir même si le PDF affiche un positif.
     amount_sign: str | None = None
 
     @classmethod

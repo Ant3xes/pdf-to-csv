@@ -65,6 +65,7 @@
   let pdfJsLoadPromise = null;
 
   function isHeicFile(file) {
+    // .heif accepté pour l'aperçu client ; le pipeline serveur n'accepte que .heic.
     const lower = file.name.toLowerCase();
     return (
       lower.endsWith(".heic") ||

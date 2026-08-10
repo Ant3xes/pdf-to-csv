@@ -59,12 +59,14 @@ def apply_template(
         normalize_date(raw_date, list(template.date_formats)) if raw_date else None
     )
     amount_sign = template.amount_sign if type_document == TYPE_AVOIR else None
+    # amount_sign YAML ne s'applique qu'aux Avoirs — une Facture reste positive.
     montant = (
         MontantHt.from_raw(raw_amount, template.decimal_separator, amount_sign)
         if raw_amount
         else None
     )
     emetteur = template.issuer
+    # OCR → À vérifier systématique (prudence CONTEXT.md), même si date/montant OK.
     statut = (
         STATUT_OK
         if emetteur and date and montant and not from_ocr
