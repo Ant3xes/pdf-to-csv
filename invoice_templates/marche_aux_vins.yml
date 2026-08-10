@@ -1,0 +1,11 @@
+issuer: Marché aux vins
+keywords:
+  - marcheauxvins.net
+  - marche-aux-vins.odoo.com
+fields:
+  date: 'facturation\s+\d{2}/\d{2}/\d{4}\s+livraison[^\n]*\n\s*(\d{2}/\d{2}/\d{4})'
+  amount: 'Montant hors taxes\s+(\d+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d/%m/%Y'
+  decimal_separator: ','

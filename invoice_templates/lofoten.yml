@@ -1,0 +1,11 @@
+issuer: Lofoten
+keywords:
+  - Lofoten Seaweed
+  - lofotenseaweed
+fields:
+  date: 'InvoiceDate:\s*(\d{2}\.\d{2}\.\d{4})'
+  amount: 'Total excl\.\s*VAT\s+(\d+[,.]\d{2})'
+options:
+  date_formats:
+    - '%d.%m.%Y'
+  decimal_separator: '.'
