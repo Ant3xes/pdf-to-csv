@@ -712,12 +712,13 @@ def test_api_lot_puis_journal_contient_fichier_et_horodatage(client):
     assert "attachment" in response.headers.get("Content-Disposition", "")
     body = response.data.decode("utf-8")
     assert "Masse 22 Juillet 26.pdf" in body
-    # Horodatage ISO-ish (YYYY-MM-DD)
-    assert re.search(r"\d{4}-\d{2}-\d{2}", body)
+    # Horodatage date + heure locales (Europe/Paris)
+    assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", body)
+    assert "action=pipeline" in body
 
 
-def test_api_journal_reinitialise_entre_deux_lots(client):
-    """Un nouveau Lot remplace le journal précédent (#56)."""
+def test_api_journal_cumule_deux_lots_sans_clear(client):
+    """Deux dépôts successifs s’ajoutent au journal de session (#61)."""
     masse = CORPUS / "Masse 22 Juillet 26.pdf"
     aluplast = CORPUS / "Aluplast 13 Juillet 26.pdf"
 
@@ -742,8 +743,28 @@ def test_api_journal_reinitialise_entre_deux_lots(client):
         )
 
     body = client.get("/api/journal").data.decode("utf-8")
+    assert "Masse 22 Juillet 26.pdf" in body
     assert "Aluplast 13 Juillet 26.pdf" in body
-    assert "Masse 22 Juillet 26.pdf" not in body
+
+
+def test_api_journal_reset_vide_le_journal(client):
+    """POST /api/journal/reset vide le journal de session (#61)."""
+    pdf_path = CORPUS / "Masse 22 Juillet 26.pdf"
+    with pdf_path.open("rb") as fh:
+        assert (
+            client.post(
+                "/api/lot",
+                data={"files": (fh, "Masse 22 Juillet 26.pdf")},
+                content_type="multipart/form-data",
+            ).status_code
+            == 200
+        )
+    assert client.get("/api/journal").status_code == 200
+
+    reset = client.post("/api/journal/reset")
+    assert reset.status_code == 204
+
+    assert client.get("/api/journal").status_code == 404
 
 
 def test_page_accueil_contient_bouton_export_journal(client):
@@ -1008,3 +1029,111 @@ def test_api_lot_ligne_a_verifier_expose_raisons_diagnostic(client):
     assert isinstance(ligne.get("raisons_diagnostic"), list)
     assert len(ligne["raisons_diagnostic"]) > 0
     assert "OCR" in ligne["raisons_diagnostic"]
+
+
+# --- Journal de session / actions utilisateur (#61) ---
+
+
+def test_api_journal_events_enregistre_actions_metier(client):
+    """POST /api/journal/events append chaque action métier au journal (#61)."""
+    events = [
+        {"action": "depot", "resultat": "accepte", "fichier": "a.pdf"},
+        {"action": "depot", "resultat": "refuse", "fichier": "x.exe"},
+        {"action": "depot", "resultat": "doublon", "fichier": "a.pdf"},
+        {
+            "action": "correction",
+            "fichier": "a.pdf",
+            "champ": "montant_ht",
+            "valeur": "12,00",
+        },
+        {"action": "validation", "fichier": "a.pdf"},
+        {"action": "type_document", "fichier": "a.pdf", "type": "AVOIR"},
+        {"action": "apercu", "fichier": "a.pdf"},
+        {
+            "action": "export_csv",
+            "mode": "detail",
+            "confirm": "confirmed",
+            "save": "ok",
+        },
+        {
+            "action": "export_csv",
+            "mode": "agrege",
+            "confirm": "cancelled",
+        },
+        {"action": "export_journal", "save": "cancelled"},
+        {"action": "nouveau_lot"},
+    ]
+    response = client.post("/api/journal/events", json={"events": events})
+    assert response.status_code == 204
+
+    body = client.get("/api/journal").data.decode("utf-8")
+    assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} action=depot", body)
+    assert "resultat=accepte" in body
+    assert "fichier=a.pdf" in body
+    assert "resultat=refuse" in body
+    assert "action=correction" in body
+    assert "champ=montant_ht" in body
+    assert "valeur=12,00" in body
+    assert "action=validation" in body
+    assert "action=type_document" in body
+    assert "type=AVOIR" in body
+    assert "action=apercu" in body
+    assert "action=export_csv" in body
+    assert "mode=detail" in body
+    assert "confirm=confirmed" in body
+    assert "save=ok" in body
+    assert "mode=agrege" in body
+    assert "confirm=cancelled" in body
+    assert "action=export_journal" in body
+    assert "action=nouveau_lot" in body
+
+
+def test_api_journal_events_action_inconnue_retourne_400(client):
+    """Action inconnue → 400, journal inchangé (#61)."""
+    client.post(
+        "/api/journal/events",
+        json={"events": [{"action": "validation", "fichier": "ok.pdf"}]},
+    )
+    before = client.get("/api/journal").data.decode("utf-8")
+
+    response = client.post(
+        "/api/journal/events",
+        json={"events": [{"action": "zoom", "level": "2"}]},
+    )
+    assert response.status_code == 400
+    assert "error" in response.get_json()
+
+    after = client.get("/api/journal").data.decode("utf-8")
+    assert after == before
+    assert "action=zoom" not in after
+
+
+def test_api_journal_events_payload_invalide_retourne_400(client):
+    response = client.post("/api/journal/events", json={"events": "nope"})
+    assert response.status_code == 400
+
+    response = client.post("/api/journal/events", json={})
+    assert response.status_code == 400
+
+
+def test_static_js_journalise_actions_utilisateur(client):
+    """Le front envoie les actions métier au journal de session (#61)."""
+    response = client.get("/static/app.js")
+
+    assert response.status_code == 200
+    js = response.data.decode()
+    assert "journaliserAction" in js
+    assert "/api/journal/events" in js
+    assert "/api/journal/reset" in js
+    assert 'action: "depot"' in js or 'action:"depot"' in js
+    assert 'action: "correction"' in js or 'action:"correction"' in js
+    assert 'action: "validation"' in js or 'action:"validation"' in js
+    assert 'action: "type_document"' in js or 'action:"type_document"' in js
+    assert 'action: "apercu"' in js or 'action:"apercu"' in js
+    assert 'action: "export_csv"' in js or 'action:"export_csv"' in js
+    assert 'action: "export_journal"' in js or 'action:"export_journal"' in js
+    assert 'resultat: "accepte"' in js or 'resultat:"accepte"' in js
+    # Nouveau lot : clear seul (action nouveau_lot optionnelle côté API)
+    # Pas de journalisation du bruit UI
+    assert 'action: "zoom"' not in js
+    assert 'action:"zoom"' not in js
