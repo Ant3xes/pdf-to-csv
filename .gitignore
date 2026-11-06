@@ -11,5 +11,6 @@ dist/
 build/
 packaging/vendor/
 
-# Corpus local (factures réelles — hors dépôt)
+# Corpus local privé (factures réelles de tiers — jamais versionné)
 private_corpus/
+private_corpus_2/

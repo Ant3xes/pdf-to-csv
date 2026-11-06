@@ -142,13 +142,13 @@ Business vocabulary: [CONTEXT.md](CONTEXT.md). Decisions: [no LLM](docs/adr/0001
 
 ### Tests
 
-Requirements include pytest and Playwright. A corpus-independent subset exercises in-memory export behavior and launcher/runtime helpers without opening bundled invoice files:
+Requirements include pytest and Playwright. A corpus-independent subset exercises in-memory export behavior and launcher/runtime helpers without the private corpus:
 
 ```bash
 python -m pytest tests/test_csv_export.py tests/test_export_agrege.py tests/test_launcher.py tests/test_runtime_paths.py
 ```
 
-The complete suite is `python -m pytest`; **some tests open bundled invoice/receipt corpus files**, and UI tests require a Playwright browser (`python -m playwright install chromium`). OCR cases also require native tools and `fra`. Do not run corpus-dependent tests as a public demonstration or reproduce their financial contents in reports. The full suite, OCR and macOS packaging were not executed for this documentation update. No dedicated documentation linter or CI workflow is configured in the checkout.
+The complete suite is `python -m pytest`; **some tests read a private corpus of real invoices (`private_corpus/`, `private_corpus_2/`) that is not provided with this repository and is git-ignored**; they are skipped automatically when it is absent, and UI tests require a Playwright browser (`python -m playwright install chromium`). OCR cases also require native tools and `fra`. Do not reproduce the financial contents of the private corpus in reports. The full suite, OCR and macOS packaging were not executed for this documentation update. No dedicated documentation linter or CI workflow is configured in the checkout.
 
 For release maintenance, follow the [macOS build guide](docs/build-macos-release.md) and install `requirements-build.txt` in addition to runtime requirements. No build or deployment is needed to try the synthetic example.
 

@@ -30,11 +30,11 @@ Se produit quand les mots-clés de plusieurs templates matchent le même texte d
 L'ensemble des fichiers déposés ensemble par l'utilisateur en une session de traitement (PDF et/ou images). Purement éphémère : aucune persistance entre les lancements de l'application, pas d'historique applicatif, pas de base de données de session.
 
 **Corpus**:
-Jeu de documents réels fournis pour concevoir les templates et valider le pipeline. Ce n'est pas une base de données applicative : c'est un dossier de fichiers d'exemple sur disque. Le corpus de référence du projet est le dossier `private_corpus/`.
+Jeu de documents réels fournis pour concevoir les templates et valider le pipeline. Ce n'est pas une base de données applicative : c'est un dossier de fichiers d'exemple sur disque. Le corpus de référence du projet est le dossier local `private_corpus/` (et `private_corpus_2/`). Il est **privé** (documents réels de tiers) : il n'est ni versionné ni fourni avec le dépôt, et les tests qui en dépendent sont ignorés s'il est absent.
 _Avoid_: « base de données » pour désigner ce dossier — réserver ce terme à une éventuelle persistance applicative (hors scope V1).
 
 **Quittance**:
-Document de loyer / occupation (ex. [locataire], [locataire]), distinct d'une **Facture** fournisseur. Hors scope V1 : non traité par le pipeline d'extraction facture, même s'il figure dans le **Corpus**.
+Document de loyer / occupation (quittance de loyer d'un locataire), distinct d'une **Facture** fournisseur. Hors scope V1 : non traité par le pipeline d'extraction facture, même s'il figure dans le **Corpus**.
 _Avoid_: Confondre quittance et facture ; ne pas créer de template « quittance » en V1.
 
 **Correction manuelle**:
@@ -60,5 +60,5 @@ Au moins un des cas suivants suffit à marquer une facture "À vérifier" :
 > **Expert métier** : Ça corrige juste cette ligne pour cet export. Ça ne touche pas le template Aluplast — si son layout a vraiment changé durablement, il faut éditer le fichier YAML à part.
 > **Dev** : Et un fournisseur jamais vu, sans aucun template ?
 > **Expert métier** : Pas d'émetteur auto-rempli, tu le tapes toi-même. Le template, si besoin, c'est un travail séparé — pas depuis l'UI, pas en V1.
-> **Dev** : Le fichier « Hennequin AVOIR » et la quittance [locataire] en .jpg, on les traite comment ?
-> **Expert métier** : L'avoir Hennequin, c'est une facture : une ligne dans l'interface, même pipeline ; à l'export, son montant se déduit du total net de l'Émetteur. La quittance [locataire], ce n'est pas une facture fournisseur — hors V1, même si elle est dans le corpus.
+> **Dev** : Le fichier « Hennequin AVOIR » et la quittance de loyer en .jpg, on les traite comment ?
+> **Expert métier** : L'avoir Hennequin, c'est une facture : une ligne dans l'interface, même pipeline ; à l'export, son montant se déduit du total net de l'Émetteur. Une quittance de loyer, ce n'est pas une facture fournisseur — hors V1, même si elle est dans le corpus.

@@ -55,7 +55,7 @@ L'utilisateur final n'est pas technique : l'interface doit être en drag & drop,
 
 ## Corpus de référence : `private_corpus/`
 
-Le corpus réel du projet vit dans [`private_corpus/`](./private_corpus/) (dossier de fichiers sur disque — **pas** une base de données applicative ; voir **Corpus** dans [`CONTEXT.md`](./CONTEXT.md)).
+Le corpus réel du projet vit dans le dossier local `private_corpus/` (et `private_corpus_2/`), **privé : documents réels de tiers, ni versionné ni fourni avec le dépôt** (dossier de fichiers sur disque — **pas** une base de données applicative ; voir **Corpus** dans [`CONTEXT.md`](./CONTEXT.md)).
 
 Inventaire (≈ 30 fichiers, juillet 2026) :
 
@@ -78,8 +78,8 @@ Inventaire (≈ 30 fichiers, juillet 2026) :
 | Véolia eaux | 1 **avoir** | |
 | Vives eaux | 2 factures + 1 **avoir** | |
 | Youtrust | 1 PDF | |
-| Quittance [locataire] | 1 `.heic` | **Hors scope V1** (pas une Facture) |
-| Quittance [locataire] | 1 `.jpg` | **Hors scope V1** (pas une Facture) |
+| Quittance de loyer | 1 `.heic` | **Hors scope V1** (pas une Facture) |
+| Quittance de loyer | 1 `.jpg` | **Hors scope V1** (pas une Facture) |
 
 ### Cas de référence historiques (smoke tests prioritaires)
 
