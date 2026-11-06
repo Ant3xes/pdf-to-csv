@@ -1,257 +1,161 @@
-# Convertisseur Factures
+# Invoice batch to CSV
 
-Application **locale** (macOS) qui convertit un lot de factures PDF ou images en un **CSV Excel-ready**, avec extraction **déterministe** (templates YAML + regex). Aucun LLM, aucun envoi cloud : les documents restent sur la machine.
+A local invoice-review application: turn supplier PDFs and invoice photos into an editable table, then export pre-tax amounts to CSV. It replaces repeated transcription of invoice dates and totals, not accounting review.
 
----
+The interface is in French. The desktop launcher targets macOS and wraps Flask + JavaScript in a pywebview window. Extraction uses local PDF text, Tesseract OCR and supplier-specific YAML/regex rules. **There is no LLM or cloud extraction API** ([decision](docs/adr/0001-pas-de-llm-pour-extraction.md)); this is an automation project, not an AI agent.
 
-## Pour l’utilisateur
+## What it does
 
-### À quoi ça sert
+1. Drop a batch of files: **one file = one invoice or credit note = one row**, including multi-page PDFs.
+2. Extract text and match supplier templates; prefill issuer, date and pre-tax amount (`HT`, *hors taxes*).
+3. Preview the document and correct issuer, date, amount or invoice/credit-note type.
+4. Review net totals by issuer and download either detailed or grouped CSV.
 
-Vous déposez plusieurs factures (ou avoirs) d’un mois. L’application :
+### Supported inputs and extraction limits
 
-1. Lit chaque fichier (texte PDF natif, ou OCR si le document est scanné / une image)
-2. Identifie le fournisseur grâce à des modèles préconfigurés
-3. Extrait la **date** et le **montant HT**
-4. Affiche un tableau éditable pour corriger ce qui manque ou ce qui est douteux
-5. Exporte un CSV **détail** (une ligne par facture, avec statut), prêt pour Excel
+| Input | Actual extraction path |
+| --- | --- |
+| `.pdf` (case-insensitive) | pdfplumber reads all pages. At least 50 native-text characters across the document, after trimming leading/trailing whitespace, keeps the native path. |
+| PDF below that threshold, including scans | Poppler renders pages at 200 DPI; Tesseract reads them using French (`fra`). |
+| `.jpg`, `.jpeg`, `.png`, `.heic` | Pillow opens the image, converts it to RGB and passes it to Tesseract. HEIC requires pillow-heif. |
 
-Un fichier = une facture (ou un avoir) = une ligne dans l’interface. Pas d’historique entre deux lancements : chaque session repart de zéro.
+The threshold is a document-level heuristic, not a quality check: a mixed PDF with enough native text will not OCR its image-only pages. OCR depends on installed native tools and scan quality; it is not guaranteed to recover every field.
 
-### Formats acceptés
+Exactly one matching supplier template supplies a **fixed issuer name** and regex rules for date and HT amount. With no match, or multiple matches, generic rules may prefill date/HT but never infer an issuer. Such rows require review. New suppliers/layout changes need YAML maintenance; manual edits do not train or change templates.
 
-| Format | Exemple | Notes |
-|---|---|---|
-| PDF texte | facture « sélectionnable » | Extraction directe du texte |
-| PDF scanné | photo / scan | OCR automatique (Tesseract) |
-| JPG, PNG, HEIC | photo de facture | OCR ; le statut reste « À vérifier » par prudence |
+`OK` means the pipeline's checks passed, **not that the invoice is certified correct**. OCR, missing/invalid fields and unknown/ambiguous templates initially produce `A_VERIFIER` (shown as “À vérifier”). Export remains possible after the UI's warning; inspect those rows first.
 
-### Installer (macOS)
+Credit-note markers in text or filenames produce `AVOIR`, otherwise the default is `FACTURE`. Credit amounts are negative and reduce issuer totals. The tool does not split combined invoices, join files into one invoice, calculate HT from tax-inclusive totals, or handle rent receipts as supported supplier invoices.
 
-Téléchargez la dernière version : [GitHub Releases](https://github.com/Ant3xes/pdf-to-csv/releases/latest)
+## Output
 
-1. Téléchargez le fichier `ConvertisseurFactures-….dmg`
-2. Ouvrez le `.dmg` et glissez **Convertisseur Factures** dans **Applications**
-3. **Première ouverture** : clic droit → **Ouvrir** → confirmer  
-   (macOS bloque les apps non signées au simple double-clic)
-4. Ensuite, lancez l’app par double-clic comme n’importe quelle application
+Both exports use UTF-8 with BOM, semicolons and decimal commas for French spreadsheet settings. Dates are normalized to `DD/MM/YYYY` when valid.
 
-### Mettre à jour
+- **Exporter détail** (`lot-detail.csv`): one row per document, invoices before credit notes. Columns: `fichier;emetteur;date;montant_ht;statut;type`.
+- **Exporter groupé** (`lot-groupe.csv`): `emetteur;montant_ht;nb_documents;fichier;date;statut;type`. Named issuers are aggregated; documents without an issuer remain individual detail rows. Aggregated rows leave document/date/status/type blank. Missing amounts contribute zero to totals, so a grouped total is not proof that all amounts were extracted.
 
-1. Téléchargez le nouveau `.dmg` depuis [la dernière release](https://github.com/Ant3xes/pdf-to-csv/releases/latest)
-2. Glissez la nouvelle app dans Applications (remplacez l’ancienne)
-3. Si macOS bloque à nouveau : clic droit → **Ouvrir** → confirmer (une fois par version)
+Diagnostic reasons appear in the UI, not as a CSV column. The downloadable diagnostic journal can contain filenames and extracted financial fields: treat it as sensitive too.
 
-### Parcours typique
+## Run locally
 
-1. **Déposer** vos fichiers (glisser-déposer ou « choisir des fichiers »)
-2. Attendre le traitement — chaque document apparaît dans **Documents**, regroupé par émetteur
-3. Cliquer sur une ligne pour **apercevoir** le fichier à droite et vérifier les champs
-4. Corriger si besoin (émetteur, date, montant HT, type Facture / Avoir) — surtout les lignes **À vérifier**
-5. Consulter la **synthèse par émetteur** (totaux nets HT du lot)
-6. Exporter via **Exporter détail** (une ligne par facture) ou **Exporter groupé** (totaux par émetteur ; les factures sans émetteur restent en détail)
+### macOS desktop
 
-### Statuts
+For a packaged build, see [GitHub Releases](https://github.com/Ant3xes/pdf-to-csv/releases). The repository's [build guide](docs/build-macos-release.md) describes an unsigned `.app`/`.dmg`; availability and compatibility of a particular release should be checked on its release page. Do not bypass operating-system warnings for an artifact you do not trust.
 
-| Statut | Signification |
-|---|---|
-| **OK** | Extraction jugée fiable (PDF texte + template connu + champs valides) |
-| **À vérifier** | Au moins un doute : fournisseur inconnu, champs manquants/invalides, OCR, ou plusieurs templates possibles |
-
-Tant qu’une ligne est « À vérifier », un **dialogue de confirmation** s’affiche à l’export ; l’export reste possible.
-
-Cas fréquents d’« À vérifier » :
-
-- Fournisseur jamais vu (pas de modèle pour ce layout)
-- Document scanné ou image (OCR = toujours à contrôler)
-- Date ou montant HT illisible / absents
-- Plusieurs fournisseurs possibles pour le même texte (ambiguïté)
-
-### Factures et avoirs
-
-- Une **facture** et un **avoir** suivent le même parcours (1 fichier → 1 ligne).
-- Un avoir est reconnu surtout via le titre ou le nom de fichier (« AVOIR », « votre avoir », etc.). En cas de doute, le document reste une facture.
-- À l’export, chaque avoir est une ligne distincte (`type=AVOIR`, montant HT négatif). Les totaux nets par émetteur restent visibles dans l’interface.
-
-### Formats du CSV exporté
-
-Séparateur `;` (Excel FR), décimale avec virgule.
-
-**Exporter détail** — une ligne par facture :
-
-```csv
-fichier;emetteur;date;montant_ht;statut;type
-Masse 22 Juillet 26.pdf;Masse;22/07/2026;751,95;OK;FACTURE
-scan.png;Altagel;15/03/2026;99,50;A_VERIFIER;FACTURE
-```
-
-| Colonne | Contenu |
-|---|---|
-| `fichier` | Nom du fichier déposé |
-| `emetteur` | Nom de la société qui facture |
-| `date` | Date de la facture |
-| `montant_ht` | Montant HT (négatif pour un avoir) |
-| `statut` | `OK` ou `A_VERIFIER` |
-| `type` | `FACTURE` ou `AVOIR` |
-
-**Exporter groupé** — totaux par émetteur nommé ; les factures **sans émetteur** restent en détail ligne à ligne :
-
-```csv
-emetteur;montant_ht;nb_documents;fichier;date;statut;type
-;12,50;1;inconnu.pdf;01/08/2026;A_VERIFIER;FACTURE
-Masse;955,24;2;;;;
-```
-
-L’export reste possible si des lignes sont « À vérifier » : une confirmation s’affiche après le clic, puis le dialogue d’enregistrement.
-
-### Limites (V1)
-
-- Pas d’édition des modèles fournisseurs depuis l’interface (fichiers YAML côté technique)
-- Pas de sauvegarde de session / historique
-- Les **quittances** de loyer ne sont pas prises en charge (ce ne sont pas des factures fournisseurs)
-- App distribuée **non signée** : première ouverture via clic droit → Ouvrir
-
----
-
-## Pour le développeur
-
-### Principes
-
-- Extraction **100 % déterministe** (pas de LLM) — [ADR-0001](docs/adr/0001-pas-de-llm-pour-extraction.md)
-- Interface **Flask + JS** (drag & drop, édition inline, aperçu) — [ADR-0002](docs/adr/0002-interface-flask-js.md)
-- Champ montant = **HT uniquement** (pas de dérivation TTC → HT) — [ADR-0003](docs/adr/0003-montant-ht.md)
-- Export CSV **agrégé par émetteur** — [ADR-0004](docs/adr/0004-export-agrege-par-emetteur.md)
-
-Vocabulaire du domaine et règles métier : [`CONTEXT.md`](CONTEXT.md). Spec produit élargie : [`PROJET_FACTURES_PDF_TO_CSV.md`](PROJET_FACTURES_PDF_TO_CSV.md).
-
-### Pipeline
-
-```
-Fichiers déposés (Lot)
-        │
-        ▼
-Texte natif (pdfplumber) ──insuffisant──► OCR (Tesseract + Poppler / images)
-        │                                         │
-        └────────────────┬────────────────────────┘
-                         ▼
-        Détection fournisseur (keywords des templates YAML)
-                         │
-            un seul match │ ambigu / aucun
-                         ▼
-        Appliquer template (issuer fixe + regex date / amount HT)
-                         │
-                         ▼
-        Statut OK ou A_VERIFIER → UI éditable → export CSV agrégé
-```
-
-### Stack
-
-| Couche | Techno |
-|---|---|
-| UI desktop | `pywebview` + Flask + JS |
-| PDF texte | `pdfplumber` |
-| OCR | `pytesseract`, `pdf2image` (Poppler), Tesseract `fra` |
-| Images HEIC | `pillow-heif` (+ `libheif` système) |
-| Templates | YAML dans `invoice_templates/` (esprit invoice2data) |
-| Packaging macOS | PyInstaller → `.app` + `.dmg` |
-
-Modules principaux sous `app/` : `lot.py` (traitement), `web.py` (API Flask), `export_agrege.py` / `csv_export.py`, `launcher.py` (fenêtre native).
-
-### Prérequis système
+From a checkout, use Python 3 with `venv`/pip support and Homebrew. No exact Python minimum or locked dependency set is declared in this repository. A headless Linux check of the documentation used Python 3.14; that does not certify the macOS GUI on that version.
 
 ```bash
 brew install tesseract tesseract-lang poppler libheif
-```
+tesseract --version
+tesseract --list-langs  # must include fra
+pdftoppm -v
 
-Vérifier : `tesseract --version`, `pdftoppm -v`, langue `fra` installée.
-
-### Environnement Python
-
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Pour le build release : aussi `pip install -r requirements-build.txt`.
-
-### Lancer depuis les sources
-
-```bash
-source .venv/bin/activate
+python -m pip install -r requirements.txt
 python -m app.launcher
 ```
 
-### Templates fournisseurs
+Run the Python commands from the repository root. The launcher binds to `127.0.0.1` on an available port and opens a native window. Other operating systems need their own Tesseract/Poppler installation and a compatible pywebview GUI backend; macOS packaging instructions are not a cross-platform installer.
 
-Un fichier YAML par fournisseur récurrent dans `invoice_templates/`. Ajouter un fournisseur = ajouter un fichier, sans toucher au code.
+There is no database or saved session/history. Uploaded working copies are written to a temporary directory and removed in the request's cleanup path. The journal lives in server memory until reset or exit; exported CSV/journal files remain wherever you save them. Local processing is not a security audit or a guarantee that operating-system temporary files can never remain after a crash. Do not expose the local server as a public service.
 
-Exemple :
+## Reproduce a safe example
 
-```yaml
-issuer: Aluplast
+After installing the Python requirements, run this from the repository root. **Everything below is synthetic**: it creates a minimal text PDF and an isolated demo template in a new temporary directory, then exercises the real extraction and CSV functions. It does not read bundled invoice documents, need OCR, or modify the application's supplier templates. Keep the printed directory if you want to inspect the generated PDF.
+
+```bash
+python - <<'PY'
+from pathlib import Path
+import tempfile
+from app.lot import process_lot
+from app.csv_export import export_csv
+
+root = Path(tempfile.mkdtemp(prefix="synthetic-invoice-"))
+templates = root / "templates"
+templates.mkdir()
+(templates / "demo.yml").write_text(r"""issuer: Synthetic Demo
 keywords:
-  - Aluplast
-  - ZA La Prévôté
+  - SYNTHETIC DEMO ONLY
 fields:
-  date: 'Date\s*:\s*(\d{2}/\d{2}/\d{2})'
-  amount: 'Montant €\s+(\d+[,.]\d{2})\s+\d+[,.]\d{2}\s+\d+[,.]\d{2}\s+\d+[,.]\d{2}'
+  date: 'Date: (\d{2}/\d{2}/\d{4})'
+  amount: 'Total HT: (\d+,\d{2})'
 options:
-  date_formats:
-    - '%d/%m/%y'
+  date_formats: ['%d/%m/%Y']
   decimal_separator: ','
+""", encoding="utf-8")
+stream = (b"BT /F1 12 Tf 50 750 Td "
+          b"(SYNTHETIC DEMO ONLY - no real invoice) Tj 0 -20 Td "
+          b"(Date: 01/01/2026) Tj 0 -20 Td (Total HT: 12,50) Tj ET")
+objects = [
+    b"<< /Type /Catalog /Pages 2 0 R >>",
+    b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+    b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+]
+data = bytearray(b"%PDF-1.4\n")
+offsets = [0]
+for number, obj in enumerate(objects, 1):
+    offsets.append(len(data))
+    data.extend(f"{number} 0 obj\n".encode() + obj + b"\nendobj\n")
+xref = len(data)
+data.extend(b"xref\n0 6\n0000000000 65535 f \n")
+for offset in offsets[1:]:
+    data.extend(f"{offset:010d} 00000 n \n".encode())
+data.extend(f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+pdf = root / "synthetic-demo.pdf"
+pdf.write_bytes(data)
+print(export_csv(process_lot([pdf], templates)).lstrip("\ufeff"), end="")
+print(f"Synthetic files: {root}")
+PY
 ```
 
-Règles importantes :
+CSV output from this example (the final temporary path varies):
 
-- `issuer` est une **valeur fixe** du template (jamais une regex sur le PDF)
-- `amount` cible le **montant HT**, jamais le TTC
-- Relation **1:1** fournisseur ↔ template actif
-- Si plusieurs templates matchent → détection ambiguë → aucun template appliqué → `A_VERIFIER`
+```csv
+fichier;emetteur;date;montant_ht;statut;type
+synthetic-demo.pdf;Synthetic Demo;01/01/2026;12,50;OK;FACTURE
+```
 
-### Corpus de référence
+This proves only the controlled native-text/template/export path, not arbitrary supplier accuracy, OCR, GUI operation or production readiness. Do not use real invoices or rent receipts for public demos, screenshots or bug reports.
 
-Le dossier [`private_corpus/`](private_corpus/) contient des documents réels pour concevoir les templates et valider le pipeline. Ce n’est **pas** une base applicative.
+## Architecture and maintenance
 
-Smoke tests prioritaires (PDF natifs OK / OCR / sans template) : voir section Tests ci-dessous et le détail dans `PROJET_FACTURES_PDF_TO_CSV.md`.
+```text
+PDF/images -> native text or local OCR -> template detection
+           -> field normalization + review status -> editable UI -> CSV
+```
+
+| Module | Responsibility |
+| --- | --- |
+| `app/extraction.py` | Supported suffixes, native PDF text and OCR fallback |
+| `app/templates_loader.py`, `invoice_templates/` | YAML loading, supplier matching and field regexes |
+| `app/lot.py`, `app/normalisation.py`, `app/amounts.py` | Batch processing, fallback rules, dates, amounts and credit-note classification |
+| `app/web.py`, `app/static/`, `app/templates/` | Local Flask API, preview and editable JavaScript UI |
+| `app/csv_export.py`, `app/export_agrege.py` | Detailed CSV and issuer aggregation |
+| `app/launcher.py`, `app/desktop_api.py` | Local server lifecycle, native window and desktop file dialogs |
+| `packaging/`, `scripts/` | PyInstaller build and native-tool staging for macOS |
+
+Business vocabulary: [CONTEXT.md](CONTEXT.md). Decisions: [no LLM](docs/adr/0001-pas-de-llm-pour-extraction.md), [Flask/JS UI](docs/adr/0002-interface-flask-js.md), [HT amounts](docs/adr/0003-montant-ht.md), [grouped export](docs/adr/0004-export-agrege-par-emetteur.md), [detailed export/status](docs/adr/0005-export-detail-avec-statut.md). These domain/architecture documents are in French.
 
 ### Tests
 
-```bash
-source .venv/bin/activate
-pytest
-```
-
-Couverture indicative du parcours Lot → CSV :
-
-- PDF natifs avec template (Masse, Domaine des Jumeaux, Devaud, Aluplast) → `OK`
-- PDF sans template (ACR) → `A_VERIFIER`, sans émetteur auto
-- PDF scanné (Altagel) → champs éventuels + `A_VERIFIER`
-- Images (JPG, PNG, HEIC) → OCR + `A_VERIFIER`
-
-### Build et release macOS
-
-Guide détaillé : [`docs/build-macos-release.md`](docs/build-macos-release.md).
+Requirements include pytest and Playwright. A corpus-independent subset exercises in-memory export behavior and launcher/runtime helpers without opening bundled invoice files:
 
 ```bash
-./scripts/build-release.sh 1.0.0
+python -m pytest tests/test_csv_export.py tests/test_export_agrege.py tests/test_launcher.py tests/test_runtime_paths.py
 ```
 
-Produit `dist/Convertisseur Factures.app` et `dist/ConvertisseurFactures-1.0.0.dmg`. Signature / notarisation optionnelles (variables `APPLE_*` sur la machine du mainteneur uniquement).
+The complete suite is `python -m pytest`; **some tests open bundled invoice/receipt corpus files**, and UI tests require a Playwright browser (`python -m playwright install chromium`). OCR cases also require native tools and `fra`. Do not run corpus-dependent tests as a public demonstration or reproduce their financial contents in reports. The full suite, OCR and macOS packaging were not executed for this documentation update. No dedicated documentation linter or CI workflow is configured in the checkout.
 
-### Structure du dépôt (repères)
+For release maintenance, follow the [macOS build guide](docs/build-macos-release.md) and install `requirements-build.txt` in addition to runtime requirements. No build or deployment is needed to try the synthetic example.
 
-```
-app/                  # Application (launcher, web, lot, export, static)
-invoice_templates/    # YAML par fournisseur
-tests/                # pytest (+ Playwright pour l’UI)
-private_corpus/     # Corpus de validation
-packaging/            # Spec PyInstaller, vendor OCR
-scripts/              # build-release, stage-vendor
-docs/adr/             # Décisions d’architecture
-CONTEXT.md            # Langage ubiquitaire / règles métier
-```
+## Project status and attribution
 
-### Contribution / agents
+This repository is maintained under [Ant3xes](https://github.com/Ant3xes). It contains a local single-user application and release tooling, not evidence of a deployed client service or a measured extraction-accuracy guarantee.
 
-Conventions agents et triage issues : [`AGENTS.md`](AGENTS.md) et [`docs/agents/`](docs/agents/).
+The repository documents the local/no-LLM design. It does **not** establish a verified breakdown of Romain Pereira's historical design, implementation, supervision and testing work versus AI assistance. No exclusive-authorship claim or percentage is inferred from commit identities or agent instructions. This README update was AI-assisted and checked against the source and the synthetic example; that statement does not establish how the application was originally built.
+
+Agent/issue conventions: [AGENTS.md](AGENTS.md) and [issue tracker](docs/agents/issue-tracker.md).
